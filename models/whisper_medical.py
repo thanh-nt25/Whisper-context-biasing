@@ -110,11 +110,34 @@ class WhisperMedical:
             return_tensors="pt"
         ).input_ids.to(self.device)
         
-        # Generate transcript
-        predicted_ids = self.model.generate(
-            input_features,
-            decoder_input_ids=prompt_ids
-        )
+        # Generate transcript - với phiên bản API mới
+        try:
+            # Phương pháp mới (không sử dụng forced_decoder_ids)
+            predicted_ids = self.model.generate(
+                input_features,
+                decoder_input_ids=prompt_ids,
+                language="en"  # Chỉ định ngôn ngữ là tiếng Anh
+            )
+        except Exception as e:
+            print(f"Error with new API: {e}")
+            try:
+                # Thử phương pháp cũ hơn
+                generation_config = self.model.generation_config
+                generation_config.forced_decoder_ids = None  # Tắt forced_decoder_ids
+                
+                predicted_ids = self.model.generate(
+                    input_features,
+                    decoder_input_ids=prompt_ids,
+                    language="en",
+                    generation_config=generation_config
+                )
+            except Exception as e2:
+                print(f"Error with fallback method: {e2}")
+                # Phương pháp dự phòng cuối cùng - chỉ sử dụng tham số tối thiểu
+                predicted_ids = self.model.generate(
+                    input_features,
+                    decoder_input_ids=prompt_ids
+                )
         
         # Decode và trả về kết quả
         transcription = self.processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]

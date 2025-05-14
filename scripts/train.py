@@ -19,10 +19,12 @@ from utils.medical_utils import generate_random_prompts
 from config.config import (
     MODEL_SAVE_DIR, TRAIN_JSONL, DEV_JSONL, TRAIN_AUDIO_DIR, DEV_AUDIO_DIR, 
     BIAS_WORDS_FILE, BATCH_SIZE, GRADIENT_ACCUMULATION_STEPS,
-    LEARNING_RATE, NUM_EPOCHS, SAVE_STEPS, EVAL_STEPS, LOGGING_STEPS, FP16,
+    LEARNING_RATE, NUM_EPOCHS, FP16,
     RANDOM_CONTEXT_PROB, RANDOM_CONTEXTS_SIZE, WEIGHT_FACTORS
 )
 from transformers import TrainingArguments
+
+from utils.compute_metric import compute_metrics_whisper_with_prompt
 
 def main():
     parser = argparse.ArgumentParser(description="Fine-tune Whisper model cho y tế")
@@ -102,20 +104,24 @@ def main():
     with open(os.path.join(args.output_dir, "training_config.json"), "w") as f:
         json.dump(training_config, f, indent=2)
     
+    eval_step = int((34358 // 2) // args.batch_size)
+    log_step = int((34358 // 50) // args.batch_size)
+    print(f"eval_step: {eval_step}, log_step: {log_step}")
     
     training_args = TrainingArguments(
         push_to_hub=True,
         hub_model_id="thanh-nt25/whisper-bias-medical",
         hub_token=args.hf_token,
         output_dir=args.output_dir,
+        save_strategy="steps",
         per_device_train_batch_size=args.batch_size,
         gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
         learning_rate=args.learning_rate,
         num_train_epochs=args.num_epochs,
         fp16=FP16,
-        save_steps=SAVE_STEPS,
-        eval_steps=EVAL_STEPS,
-        logging_steps=LOGGING_STEPS,
+        save_steps=eval_step,
+        eval_steps=eval_step,
+        logging_steps=log_step,
         eval_strategy="steps",
         load_best_model_at_end=True,
         save_total_limit=3,
@@ -136,6 +142,11 @@ def main():
         eval_dataset=val_dataset,
         data_collator=WhisperDataCollator(whisper_medical.processor),
         processing_class=whisper_medical.processor,
+        compute_metrics=lambda eval_preds: compute_metrics_whisper_with_prompt(
+            eval_preds,
+            tokenizer=whisper_medical.processor.tokenizer,
+            prompt_ids_list=[x["prompt_ids"].tolist() for x in val_dataset]
+        ),
     )
     
     

@@ -125,12 +125,20 @@ def evaluate_model(model, jsonl_file, audio_dir, bias_words_file, num_samples=No
         references.append(transcript)
         
         # Nhận dạng không có description
-        pred_no_desc = model.transcribe(audio_path)
-        predictions.append(pred_no_desc)
+        try:
+            pred_no_desc = model.transcribe(audio_path)
+            predictions.append(pred_no_desc)
+        except Exception as e:
+            print(f"Error in transcribing without description: {e}")
+            predictions.append("ERROR: Could not transcribe")
         
         # Nhận dạng có description và bias words
-        pred_with_desc = model.transcribe(audio_path, description, bias_words_string)
-        predictions_with_description.append(pred_with_desc)
+        try:
+            pred_with_desc = model.transcribe(audio_path, description, bias_words_string)
+            predictions_with_description.append(pred_with_desc)
+        except Exception as e:
+            print(f"Error in transcribing with description: {e}")
+            predictions_with_description.append("ERROR: Could not transcribe")
     
     # Tính WER
     wer_no_desc, individual_wers_no_desc = calculate_wer(references, predictions)
