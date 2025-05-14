@@ -34,7 +34,7 @@ class WhisperMedicalTrainer(Trainer):
         self.medical_terms_mapping = medical_terms_mapping or {}
         self.weight_factors = weight_factors or {}
     
-    def compute_loss(self, model, inputs, return_outputs=False):
+    def compute_loss(self, model, inputs, return_outputs=False, , num_items_in_batch=None):
         """
         Tính loss với context perturbation và medical weighted loss
         """
