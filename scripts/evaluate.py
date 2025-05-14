@@ -29,11 +29,6 @@ def main():
     args = parser.parse_args()
     
     # Thiết lập output file
-    if args.output is None:
-        eval_dir = os.path.join(os.path.dirname(args.model_dir), "evaluation")
-        os.makedirs(eval_dir, exist_ok=True)
-        model_name = os.path.basename(args.model_dir)
-        args.output = os.path.join(eval_dir, f"{model_name}_evaluation.json")
     
     if args.model_dir.startswith("openai/"):
         whisper_medical = WhisperMedical(model_id=args.model_dir, freeze_encoder=False)
@@ -41,6 +36,7 @@ def main():
         whisper_medical = WhisperMedical()
         whisper_medical.load(args.model_dir)
 
+    print(f"Evaluating model from {args.model_dir} on {args.test_jsonl}")
     evaluation_results = evaluate_model(
         whisper_medical, 
         args.test_jsonl,
@@ -79,6 +75,15 @@ def main():
     # print(f"  F1: {evaluation_results['medical_terms_with_desc']['f1']:.4f}")
     
     # print(f"\nKết quả chi tiết đã được lưu vào {args.output} và {detailed_output}")
+    if args.output is None:
+        eval_dir = os.path.join(os.path.dirname(args.model_dir), "evaluation")
+        os.makedirs(eval_dir, exist_ok=True)
+        model_name = os.path.basename(args.model_dir)
+        args.output = os.path.join(eval_dir, f"{model_name}_evaluation.json")
+        
+    wer_txt_path = args.output.replace('.json', '_wer.txt')
+    with open(wer_txt_path, 'w') as f:
+        f.write(f"WER (no description): {evaluation_results['wer']['no_description']:.4f}\n")
 
 if __name__ == "__main__":
     main()
