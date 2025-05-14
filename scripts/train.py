@@ -19,7 +19,7 @@ from utils.medical_utils import generate_random_prompts
 from config.config import (
     MODEL_SAVE_DIR, TRAIN_JSONL, DEV_JSONL, TRAIN_AUDIO_DIR, DEV_AUDIO_DIR, 
     BIAS_WORDS_FILE, BATCH_SIZE, GRADIENT_ACCUMULATION_STEPS,
-    LEARNING_RATE, NUM_EPOCHS, FP16,
+    LEARNING_RATE, NUM_EPOCHS, FP16,SAVE_STEPS, EVAL_STEPS, LOGGING_STEPS,
     RANDOM_CONTEXT_PROB, RANDOM_CONTEXTS_SIZE, WEIGHT_FACTORS
 )
 from transformers import TrainingArguments
@@ -104,9 +104,9 @@ def main():
     with open(os.path.join(args.output_dir, "training_config.json"), "w") as f:
         json.dump(training_config, f, indent=2)
     
-    eval_step = int((34358 // 2) // args.batch_size)
-    log_step = int((34358 // 50) // args.batch_size)
-    print(f"eval_step: {eval_step}, log_step: {log_step}")
+    # eval_step = int((34358 // 2) // args.batch_size)
+    # log_step = int((34358 // 50) // args.batch_size)
+    # print(f"eval_step: {eval_step}, log_step: {log_step}")
     
     training_args = TrainingArguments(
         push_to_hub=True,
@@ -119,9 +119,9 @@ def main():
         learning_rate=args.learning_rate,
         num_train_epochs=args.num_epochs,
         fp16=FP16,
-        save_steps=eval_step,
-        eval_steps=eval_step,
-        logging_steps=log_step,
+        save_steps=SAVE_STEPS,
+        eval_steps=EVAL_STEPS,
+        logging_steps=LOGGING_STEPS,
         eval_strategy="steps",
         load_best_model_at_end=True,
         save_total_limit=3,
