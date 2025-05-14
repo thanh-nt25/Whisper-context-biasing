@@ -194,6 +194,8 @@ def evaluate_model(model, jsonl_file, audio_dir, bias_words_file, num_samples=No
     Returns:
         Dictionary chứa kết quả đánh giá
     """
+    from data_utils.data_processor import load_jsonl
+    
     # Đọc dữ liệu
     data = load_jsonl(jsonl_file)
     if num_samples:
