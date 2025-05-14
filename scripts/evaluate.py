@@ -51,15 +51,15 @@ def main():
     
     
     # Lưu kết quả đánh giá
-    with open(args.output, 'w') as f:
-        # Đảm bảo detailed_results không được ghi ra file (quá lớn)
-        results_to_save = {k: v for k, v in evaluation_results.items() if k != 'detailed_results'}
-        json.dump(results_to_save, f, indent=2)
+    # with open(args.output, 'w') as f:
+    #     # Đảm bảo detailed_results không được ghi ra file (quá lớn)
+    #     results_to_save = {k: v for k, v in evaluation_results.items() if k != 'detailed_results'}
+    #     json.dump(results_to_save, f, indent=2)
     
-    # Lưu detailed_results riêng nếu cần
-    detailed_output = args.output.replace('.json', '_detailed.json')
-    with open(detailed_output, 'w') as f:
-        json.dump(evaluation_results['detailed_results'], f, indent=2)
+    # # Lưu detailed_results riêng nếu cần
+    # detailed_output = args.output.replace('.json', '_detailed.json')
+    # with open(detailed_output, 'w') as f:
+    #     json.dump(evaluation_results['detailed_results'], f, indent=2)
     
     # Hiển thị kết quả tổng quan
     print("\nKết quả đánh giá:")
@@ -78,7 +78,7 @@ def main():
     # print(f"  Recall: {evaluation_results['medical_terms_with_desc']['recall']:.4f}")
     # print(f"  F1: {evaluation_results['medical_terms_with_desc']['f1']:.4f}")
     
-    print(f"\nKết quả chi tiết đã được lưu vào {args.output} và {detailed_output}")
+    # print(f"\nKết quả chi tiết đã được lưu vào {args.output} và {detailed_output}")
 
 if __name__ == "__main__":
     main()
