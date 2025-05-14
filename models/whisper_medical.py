@@ -37,8 +37,19 @@ class WhisperMedical:
     
     def _freeze_encoder(self):
         """Đóng băng encoder để chỉ fine-tune decoder"""
-        for param in self.model.encoder.parameters():
-            param.requires_grad = False
+        # Kiểm tra cấu trúc của mô hình Whisper
+        if hasattr(self.model, "encoder"):
+            for param in self.model.encoder.parameters():
+                param.requires_grad = False
+            print("Frozen encoder (model.encoder)")
+        elif hasattr(self.model, "model") and hasattr(self.model.model, "encoder"):
+            for param in self.model.model.encoder.parameters():
+                param.requires_grad = False
+            print("Frozen encoder (model.model.encoder)")
+        else:
+            print("WARNING: Không thể xác định encoder trong mô hình Whisper. Bỏ qua việc đóng băng encoder.")
+            # Kiểm tra tất cả thuộc tính của mô hình để debug
+            print("Available attributes:", [attr for attr in dir(self.model) if not attr.startswith('_')])
     
     def create_medical_terms_mapping(self, bias_file=None):
         """
