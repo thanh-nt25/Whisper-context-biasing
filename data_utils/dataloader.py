@@ -71,8 +71,14 @@ class WhisperMedicalDataset(Dataset):
         ).input_ids.squeeze(0)
         
         # Tokenize transcript (labels)
-        with self.processor.as_target_processor():
-            labels = self.processor(transcript, return_tensors="pt").input_ids.squeeze(0)
+        # with self.processor.as_target_processor():
+        #     labels = self.processor(transcript, return_tensors="pt").input_ids.squeeze(0)
+        # Tokenize transcript (labels)
+        labels = self.processor.tokenizer(
+            transcript, 
+            return_tensors="pt"
+        ).input_ids.squeeze(0)
+
         
         return {
             "input_features": input_features,
