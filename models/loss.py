@@ -19,24 +19,18 @@ def compute_medical_weighted_loss(model, inputs, medical_terms_mapping, weight_f
     labels = inputs.get("labels")
     decoder_input_ids = inputs.get("decoder_input_ids")
     
-    # Forward pass với cơ chế tính loss tự động của Whisper
+    # Kiểm tra kích thước của các tensor
+    batch_size = labels.shape[0]
+    
+    # Forward pass - KHÔNG sử dụng labels trong forward pass
     outputs = model(
         input_features=input_features,
         decoder_input_ids=decoder_input_ids,
-        labels=labels,  # Sử dụng labels trực tiếp
+        labels=None,  # Không tính loss tự động
     )
     
-    # Lấy logits và loss chuẩn từ outputs
+    # Lấy logits
     logits = outputs.logits
-    standard_loss = outputs.loss
-    
-    # Nếu không có medical_terms để áp dụng trọng số, trả về loss chuẩn
-    if not medical_terms_mapping or len(medical_terms_mapping) == 0:
-        return standard_loss
-    
-    # Kiểm tra batch size
-    batch_size = labels.shape[0]
-    assert logits.shape[0] == batch_size, f"Batch size mismatch: logits {logits.shape[0]}, labels {batch_size}"
     
     # Tạo ma trận trọng số với giá trị mặc định là 1
     weights = torch.ones_like(labels, dtype=torch.float)
@@ -50,18 +44,44 @@ def compute_medical_weighted_loss(model, inputs, medical_terms_mapping, weight_f
                     term_type = medical_terms_mapping[token]
                     weights[batch_idx, pos_idx] = weight_factors.get(term_type, 1.1)
     
-    # Sử dụng CrossEntropyLoss để tính loss theo từng token
+    # Tính loss thủ công (không sử dụng loss tự động của mô hình)
     loss_fct = torch.nn.CrossEntropyLoss(reduction='none')
-    token_losses = loss_fct(logits.view(-1, logits.size(-1)), labels.view(-1))
-    token_losses = token_losses.view(labels.shape)
     
-    # Áp dụng trọng số và tính trung bình
-    weighted_token_losses = token_losses * weights
-    active_elements = (labels != -100)
+    # Giải quyết vấn đề kích thước không khớp
+    # logits shape: [batch_size, sequence_length, vocab_size]
+    # labels shape: [batch_size, target_length]
     
-    if active_elements.any():
-        weighted_loss = weighted_token_losses[active_elements].mean()
-        return weighted_loss
+    # Lấy phần cuối cùng của logits có độ dài bằng labels
+    if logits.size(1) > labels.size(1):
+        # Nếu logits dài hơn, lấy phần cuối cùng
+        logits = logits[:, -labels.size(1):, :]
+    elif logits.size(1) < labels.size(1):
+        # Nếu labels dài hơn, cắt bớt labels
+        labels = labels[:, :logits.size(1)]
+        weights = weights[:, :logits.size(1)]
+    
+    # Tính loss
+    # Reshape để tính loss: [batch_size * seq_len, vocab_size]
+    logits_flat = logits.reshape(-1, logits.shape[-1])
+    labels_flat = labels.reshape(-1)
+    
+    # Chỉ tính loss cho non-padding tokens
+    active_loss = labels_flat != -100
+    
+    if active_loss.sum() > 0:  # Kiểm tra nếu có token nào để tính loss
+        active_logits = logits_flat[active_loss]
+        active_labels = labels_flat[active_loss]
+        
+        # Tính loss chỉ trên các active tokens
+        token_loss = loss_fct(active_logits, active_labels)
+        
+        # Reshape trọng số cho active tokens
+        weights_flat = weights.reshape(-1)[active_loss]
+        
+        # Nhân loss với trọng số và lấy trung bình
+        weighted_loss = (token_loss * weights_flat).mean()
     else:
-        # Trả về loss 0 nếu không có element nào active
-        return standard_loss * 0.0
+        # Nếu không có token nào để tính loss
+        weighted_loss = torch.tensor(0.0, device=logits.device)
+    
+    return weighted_loss
