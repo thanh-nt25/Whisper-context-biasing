@@ -15,6 +15,8 @@ sys.path.append(str(Path(__file__).parent.parent.absolute()))
 from utils.medical_utils import extract_medical_terms_from_bias_list
 from data_utils.data_processor import get_audio_path, load_bias_words
 
+from compute_metric import BasicTextNormalizer
+
 def calculate_wer(references, predictions):
     """
     Tính Word Error Rate (WER)
@@ -85,6 +87,76 @@ def calculate_medical_term_accuracy(references, predictions, bias_words_file):
         "false_positives": fp,
         "false_negatives": fn
     }
+
+def evaluate_model(model, jsonl_file, audio_dir, bias_words_file=None, num_samples=None, batch_size=16):
+    """
+    Đánh giá mô hình trên tập dữ liệu
+
+    Args:
+        model: WhisperMedical model (đã có transcribe_batch)
+        jsonl_file: Đường dẫn đến file JSONL chứa data
+        audio_dir: Thư mục chứa audio
+        bias_words_file: Đường dẫn đến file bias words
+        num_samples: Số lượng mẫu cần đánh giá (None = tất cả)
+        batch_size: Kích thước batch để đánh giá
+
+    Returns:
+        Dictionary chứa kết quả đánh giá
+    """
+    from data_utils.data_processor import load_jsonl
+
+    data = load_jsonl(jsonl_file)
+    if num_samples:
+        data = data[:num_samples]
+
+    bias_words_string = load_bias_words(bias_words_file) if bias_words_file else None
+    
+    batches = [
+        data[i:i + batch_size] for i in range(0, len(data), batch_size)
+    ]
+
+    all_references = []
+    all_predictions = []
+    
+    for batch in tqdm(batches, desc="Evaluating"):
+        audio_paths = [get_audio_path(d["file"], audio_dir) for d in batch]
+        descriptions = [d["description"] for d in batch] if bias_words_string else [None] * len(batch)
+        transcripts = [d["text"] for d in batch]
+
+        try:
+            preds = model.transcribe_batch(audio_paths, descriptions, bias_words_string)
+        except Exception as e:
+            print(f"Error in batch transcription: {e}")
+            preds = ["ERROR"] * len(audio_paths)
+
+        all_references.extend(transcripts)
+        all_predictions.extend(preds)
+
+    normalizer = BasicTextNormalizer(remove_diacritics=True)
+    all_references = [normalizer(t) for t in all_references]
+    all_predictions = [normalizer(p) for p in all_predictions]
+
+    wer = calculate_wer(all_references, all_predictions)
+    print(f"Evaluation WER: {wer:.4f}")
+    
+    output_txt = os.path.join("/kaggle/working/", f"refs_and_preds_of_{model}.txt")
+    
+    with open(output_txt, "w", encoding="utf-8") as f:
+        for ref, pred in zip(all_references, all_predictions):
+            f.write(f"Ref: {ref}\n")
+            f.write(f"Pred: {pred}\n\n")
+    print(f"Saved references and predictions file to {output_txt}")
+    
+    
+    evaluation_results = {
+        "wer": {
+            "no_description": wer
+        }
+    }
+
+    return evaluation_results
+
+
 
 # def evaluate_model(model, jsonl_file, audio_dir, bias_words_file, num_samples=None):
 #     """
@@ -180,68 +252,3 @@ def calculate_medical_term_accuracy(references, predictions, bias_words_file):
     
 #     return evaluation_results
   
-def evaluate_model(model, jsonl_file, audio_dir, bias_words_file=None, num_samples=None, batch_size=16):
-    """
-    Đánh giá mô hình trên tập dữ liệu
-
-    Args:
-        model: WhisperMedical model (đã có transcribe_batch)
-        jsonl_file: Đường dẫn đến file JSONL chứa data
-        audio_dir: Thư mục chứa audio
-        bias_words_file: Đường dẫn đến file bias words
-        num_samples: Số lượng mẫu cần đánh giá (None = tất cả)
-        batch_size: Kích thước batch để đánh giá
-
-    Returns:
-        Dictionary chứa kết quả đánh giá
-    """
-    from data_utils.data_processor import load_jsonl
-
-    data = load_jsonl(jsonl_file)
-    if num_samples:
-        data = data[:num_samples]
-
-    bias_words_string = load_bias_words(bias_words_file) if bias_words_file else None
-    
-    batches = [
-        data[i:i + batch_size] for i in range(0, len(data), batch_size)
-    ]
-
-    all_references = []
-    all_predictions = []
-    
-    for batch in tqdm(batches, desc="Evaluating"):
-        audio_paths = [get_audio_path(d["file"], audio_dir) for d in batch]
-        descriptions = [d["description"] for d in batch] if bias_words_string else [None] * len(batch)
-        transcripts = [d["text"] for d in batch]
-
-        try:
-            preds = model.transcribe_batch(audio_paths, descriptions, bias_words_string)
-        except Exception as e:
-            print(f"Error in batch transcription: {e}")
-            preds = ["ERROR"] * len(audio_paths)
-
-        all_references.extend(transcripts)
-        all_predictions.extend(preds)
-
-    normalizer = BasicTextNormalizer(remove_diacritics=True)
-    all_references = [normalizer(t) for t in all_references]
-    all_predictions = [normalizer(p) for p in all_predictions]
-
-    output_txt = os.path.join("/kaggle/working/", f"refs_and_preds_of_{model}.txt")
-    
-    with open(output_txt, "w", encoding="utf-8") as f:
-        for ref, pred in zip(all_references, all_predictions):
-            f.write(f"Ref: {ref}\n")
-            f.write(f"Pred: {pred}\n\n")
-    print(f"Saved references and predictions file to {output_txt}")
-    
-    wer = calculate_wer(all_references, all_predictions)
-    
-    evaluation_results = {
-        "wer": {
-            "no_description": wer
-        }
-    }
-
-    return evaluation_results
