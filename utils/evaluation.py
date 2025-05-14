@@ -15,7 +15,7 @@ sys.path.append(str(Path(__file__).parent.parent.absolute()))
 from utils.medical_utils import extract_medical_terms_from_bias_list
 from data_utils.data_processor import get_audio_path, load_bias_words
 
-from compute_metric import BasicTextNormalizer
+from utils.compute_metric import BasicTextNormalizer
 
 def calculate_wer(references, predictions):
     """
