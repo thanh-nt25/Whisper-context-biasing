@@ -180,7 +180,7 @@ def calculate_medical_term_accuracy(references, predictions, bias_words_file):
     
 #     return evaluation_results
   
-def evaluate_model(model, jsonl_file, audio_dir, bias_words_file, num_samples=None, batch_size=32):
+def evaluate_model(model, jsonl_file, audio_dir, bias_words_file=None, num_samples=None, batch_size=16):
     """
     Đánh giá mô hình trên tập dữ liệu
 
@@ -203,38 +203,41 @@ def evaluate_model(model, jsonl_file, audio_dir, bias_words_file, num_samples=No
         data = data[:num_samples]
 
     # Đọc bias words
-    bias_words_string = load_bias_words(bias_words_file)
+    bias_words_string = load_bias_words(bias_words_file) if bias_words_file else None
+    
+    batches = [
+        data[i:i + batch_size] for i in range(0, len(data), batch_size)
+    ]
 
-    references = []
-    audio_paths = []
-    descriptions = []
+    all_references = []
+    all_predictions = []
+    
+    for batch in tqdm(batches, desc="Evaluating"):
+        audio_paths = [get_audio_path(d["file"], audio_dir) for d in batch]
+        descriptions = [d["description"] for d in batch] if bias_words_string else [None] * len(batch)
+        transcripts = [d["text"] for d in batch]
 
-    for item in data:
-        file_name = item['file']
-        transcript = item['text']
-        description = item['description']
-        audio_path = get_audio_path(file_name, audio_dir)
-
-        references.append(transcript)
-        audio_paths.append(audio_path)
-        descriptions.append(description)
-
-    predictions = []
-    # Dự đoán theo batch không có description
-    print(f"Transcribing {len(audio_paths)} samples without description...")
-    for i in tqdm(range(0, len(audio_paths), batch_size), desc="Evaluating"):
-        batch_audio_paths = audio_paths[i:i+batch_size]
         try:
-            preds = model.transcribe_batch(batch_audio_paths)
+            preds = model.transcribe_batch(audio_paths, descriptions, bias_words_string)
         except Exception as e:
-            preds = ["ERROR"] * len(batch_audio_paths)
-            print(f"Error during batch inference: {e}")
-        predictions.extend(preds)
+            print(f"Error in batch transcription: {e}")
+            preds = ["ERROR"] * len(audio_paths)
 
+        all_references.extend(transcripts)
+        all_predictions.extend(preds)
+
+    normalizer = BasicTextNormalizer(remove_diacritics=True)
+    all_references = [normalizer(t) for t in all_references]
+    all_predictions = [normalizer(p) for p in all_predictions]
+
+    output_txt = os.path.join("/kaggle/working/", f"refs_and_preds_of_{model}.txt")
+    with open(output_txt, "w", encoding="utf-8") as f:
+        for ref, pred in zip(all_references, all_predictions):
+            f.write(f"Ref: {ref}\n")
+            f.write(f"Pred: {pred}\n\n")
+    print(f"Saved references and predictions file to {output_txt}")
     # Tính WER
-    print(f"Calculating WER on {jsonl_file} with no description")
-    wer_no_desc = calculate_wer(references, predictions)
-
+    wer = calculate_wer(all_references, all_predictions)
     evaluation_results = {
         "wer": {
             "no_description": wer_no_desc

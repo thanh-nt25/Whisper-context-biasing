@@ -35,18 +35,20 @@ def main():
         model_name = os.path.basename(args.model_dir)
         args.output = os.path.join(eval_dir, f"{model_name}_evaluation.json")
     
-    # Tải mô hình
-    whisper_medical = WhisperMedical()
-    whisper_medical.load(args.model_dir)
-    
-    # Đánh giá mô hình
+    if args.model_dir.startswith("openai/"):
+        whisper_medical = WhisperMedical(model_id=args.model_dir, freeze_encoder=False)
+    else:
+        whisper_medical = WhisperMedical()
+        whisper_medical.load(args.model_dir)
+
     evaluation_results = evaluate_model(
         whisper_medical, 
         args.test_jsonl,
         args.test_audio_dir,
-        args.bias_words_file,
+        None if args.no_bias_words or args.model_dir.startswith("openai/") else args.bias_words_file,
         args.num_samples
     )
+    
     
     # Lưu kết quả đánh giá
     with open(args.output, 'w') as f:
