@@ -1,0 +1,2 @@
+train
+python main.py --train_jsonl data/all_text_train_description.jsonl --dev_jsonl data/all_text_dev_description.jsonl --train_audio_dir dataset/medical/train --dev_audio_dir dataset/medical/dev --bias_words_file data/Blist/bias_list_30.txt
