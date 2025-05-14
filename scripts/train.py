@@ -110,7 +110,7 @@ def main():
     
     training_args = TrainingArguments(
         push_to_hub=True,
-        hub_model_id="thanh-nt25/whisper-bias-medical",
+        hub_model_id="thanh-nt25/whisper-bias-medical-2",
         hub_token=args.hf_token,
         output_dir=args.output_dir,
         save_strategy="steps",
@@ -127,7 +127,7 @@ def main():
         save_total_limit=3,
         remove_unused_columns=False,
         report_to=["wandb"],
-        run_name="whisper-medical-biasing",
+        run_name="whisper-medical-biasing-2",
     )
     
     
