@@ -197,12 +197,10 @@ def evaluate_model(model, jsonl_file, audio_dir, bias_words_file=None, num_sampl
     """
     from data_utils.data_processor import load_jsonl
 
-    # Đọc dữ liệu
     data = load_jsonl(jsonl_file)
     if num_samples:
         data = data[:num_samples]
 
-    # Đọc bias words
     bias_words_string = load_bias_words(bias_words_file) if bias_words_file else None
     
     batches = [
@@ -231,16 +229,18 @@ def evaluate_model(model, jsonl_file, audio_dir, bias_words_file=None, num_sampl
     all_predictions = [normalizer(p) for p in all_predictions]
 
     output_txt = os.path.join("/kaggle/working/", f"refs_and_preds_of_{model}.txt")
+    
     with open(output_txt, "w", encoding="utf-8") as f:
         for ref, pred in zip(all_references, all_predictions):
             f.write(f"Ref: {ref}\n")
             f.write(f"Pred: {pred}\n\n")
     print(f"Saved references and predictions file to {output_txt}")
-    # Tính WER
+    
     wer = calculate_wer(all_references, all_predictions)
+    
     evaluation_results = {
         "wer": {
-            "no_description": wer_no_desc
+            "no_description": wer
         }
     }
 

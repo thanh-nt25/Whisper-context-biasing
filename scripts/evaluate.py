@@ -76,14 +76,20 @@ def main():
     
     # print(f"\nKết quả chi tiết đã được lưu vào {args.output} và {detailed_output}")
     if args.output is None:
-        eval_dir = os.path.join(os.path.dirname(args.model_dir), "evaluation")
-        os.makedirs(eval_dir, exist_ok=True)
-        model_name = os.path.basename(args.model_dir)
-        args.output = os.path.join(eval_dir, f"{model_name}_evaluation.json")
-        
-    wer_txt_path = args.output.replace('.json', '_wer.txt')
-    with open(wer_txt_path, 'w') as f:
-        f.write(f"WER (no description): {evaluation_results['wer']['no_description']:.4f}\n")
+        output_dir = os.path.join(os.path.dirname(args.model_dir), "evaluation")
+    else:
+        output_dir = args.output
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    model_name = os.path.basename(args.model_dir.rstrip("/"))
+
+    txt_path = os.path.join(output_dir, f"{model_name}_evaluation_wer.txt")
+
+    wer_value = evaluation_results["wer"]["no_description"]
+
+    with open(txt_path, "w") as f:
+        f.write(f"{wer_value:.4f}\n")
 
 if __name__ == "__main__":
     main()
