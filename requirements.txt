@@ -1,4 +1,4 @@
-transformers>=4.35.0
+transformers
 librosa>=0.10.0
 torch>=2.0.0
 jiwer>=3.0.1
