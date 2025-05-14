@@ -116,6 +116,7 @@ def main():
         load_best_model_at_end=True,
         save_total_limit=3,
         remove_unused_columns=False,
+        report_to=["none"]
     )
     
     # Khởi tạo trainer
