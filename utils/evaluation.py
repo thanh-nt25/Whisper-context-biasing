@@ -180,7 +180,7 @@ def calculate_medical_term_accuracy(references, predictions, bias_words_file):
     
 #     return evaluation_results
   
-def evaluate_model(model, jsonl_file, audio_dir, bias_words_file, num_samples=None, batch_size=16):
+def evaluate_model(model, jsonl_file, audio_dir, bias_words_file, num_samples=None, batch_size=32):
     """
     Đánh giá mô hình trên tập dữ liệu
 
