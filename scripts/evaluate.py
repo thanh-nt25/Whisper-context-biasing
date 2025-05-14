@@ -62,19 +62,19 @@ def main():
     # Hiển thị kết quả tổng quan
     print("\nKết quả đánh giá:")
     print(f"WER không description: {evaluation_results['wer']['no_description']:.4f}")
-    print(f"WER với description: {evaluation_results['wer']['with_description']:.4f}")
-    print(f"Cải thiện: {evaluation_results['wer']['improvement']:.4f} ({evaluation_results['wer']['improvement_percentage']:.2f}%)")
+    # print(f"WER với description: {evaluation_results['wer']['with_description']:.4f}")
+    # print(f"Cải thiện: {evaluation_results['wer']['improvement']:.4f} ({evaluation_results['wer']['improvement_percentage']:.2f}%)")
     
-    print("\nĐộ chính xác nhận dạng thuật ngữ y tế:")
-    print("Không description:")
-    print(f"  Precision: {evaluation_results['medical_terms_no_desc']['precision']:.4f}")
-    print(f"  Recall: {evaluation_results['medical_terms_no_desc']['recall']:.4f}")
-    print(f"  F1: {evaluation_results['medical_terms_no_desc']['f1']:.4f}")
+    # print("\nĐộ chính xác nhận dạng thuật ngữ y tế:")
+    # print("Không description:")
+    # print(f"  Precision: {evaluation_results['medical_terms_no_desc']['precision']:.4f}")
+    # print(f"  Recall: {evaluation_results['medical_terms_no_desc']['recall']:.4f}")
+    # print(f"  F1: {evaluation_results['medical_terms_no_desc']['f1']:.4f}")
     
-    print("Với description:")
-    print(f"  Precision: {evaluation_results['medical_terms_with_desc']['precision']:.4f}")
-    print(f"  Recall: {evaluation_results['medical_terms_with_desc']['recall']:.4f}")
-    print(f"  F1: {evaluation_results['medical_terms_with_desc']['f1']:.4f}")
+    # print("Với description:")
+    # print(f"  Precision: {evaluation_results['medical_terms_with_desc']['precision']:.4f}")
+    # print(f"  Recall: {evaluation_results['medical_terms_with_desc']['recall']:.4f}")
+    # print(f"  F1: {evaluation_results['medical_terms_with_desc']['f1']:.4f}")
     
     print(f"\nKết quả chi tiết đã được lưu vào {args.output} và {detailed_output}")
 
