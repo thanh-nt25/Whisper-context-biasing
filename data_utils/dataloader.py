@@ -21,16 +21,6 @@ class WhisperMedicalDataset(Dataset):
     Dataset cho fine-tuning Whisper với medical prompts từ JSONL
     """
     def __init__(self, jsonl_file, processor, audio_dir, bias_words_string=None, max_prompt_length=100):
-        """
-        Khởi tạo dataset
-        
-        Args:
-            jsonl_file: Đường dẫn đến file JSONL chứa metadata
-            processor: WhisperProcessor để xử lý dữ liệu
-            audio_dir: Thư mục chứa file audio
-            bias_words_string: Chuỗi các bias words cố định (có thể None)
-            max_prompt_length: Độ dài tối đa cho prompt để tránh OOM
-        """
         self.data = load_jsonl(jsonl_file)
         self.processor = processor
         self.audio_dir = audio_dir
@@ -63,7 +53,6 @@ class WhisperMedicalDataset(Dataset):
             ).input_features.squeeze(0)
         except Exception as e:
             print(f"Error processing audio file {audio_path}: {e}")
-            # Trả về tensor rỗng trong trường hợp lỗi
             input_features = torch.zeros((1, 80, 3000))
         
         # Tokenize prompt cho decoder input với truncation nếu cần
@@ -74,19 +63,21 @@ class WhisperMedicalDataset(Dataset):
             truncation=True
         ).input_ids.squeeze(0)
         
-        # Tokenize transcript (labels)
-        with self.processor.as_target_processor():
-            labels = self.processor(transcript, return_tensors="pt").input_ids.squeeze(0)
+        # Tokenize transcript cho labels
+        # Thay vì sử dụng as_target_processor(), sử dụng tokenizer trực tiếp
+        label_ids = self.processor.tokenizer(
+            transcript,
+            return_tensors="pt"
+        ).input_ids.squeeze(0)
         
         return {
             "input_features": input_features,
             "decoder_input_ids": prompt_ids,
-            "labels": labels,
+            "labels": label_ids,
             "transcript": transcript,
             "file_name": file_name,
             "description": description
         }
-
 @dataclass
 class WhisperDataCollator:
     """
