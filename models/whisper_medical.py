@@ -142,3 +142,49 @@ class WhisperMedical:
         # Decode và trả về kết quả
         transcription = self.processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
         return transcription
+      
+    def transcribe_batch(self, audio_paths, descriptions=None, bias_words_string=None, batch_size=8):
+        results = []
+        for i in range(0, len(audio_paths), batch_size):
+            batch_paths = audio_paths[i:i+batch_size]
+            batch_descs = descriptions[i:i+batch_size] if descriptions else [None] * len(batch_paths)
+
+            inputs = []
+            prompts = []
+
+            for path, desc in zip(batch_paths, batch_descs):
+                audio, _ = librosa.load(path, sr=16000)
+                input_features = self.processor(audio, sampling_rate=16000, return_tensors="pt").input_features[0]
+                inputs.append(input_features)
+
+                if desc:
+                    if bias_words_string:
+                        prompt = create_prompt(desc, bias_words_string)
+                    else:
+                        prompt = f"<SOP> {desc} <SOT>"
+                else:
+                    prompt = "<SOT>"
+                prompt_ids = self.processor.tokenizer(prompt, return_tensors="pt").input_ids[0]
+                prompts.append(prompt_ids)
+
+            inputs = torch.stack(inputs).to(self.device)
+            prompt_input = torch.nn.utils.rnn.pad_sequence(prompts, batch_first=True, padding_value=self.processor.tokenizer.pad_token_id).to(self.device)
+
+            try:
+                predicted_ids = self.model.generate(
+                    inputs,
+                    decoder_input_ids=prompt_input
+                )
+            except:
+                generation_config = self.model.generation_config
+                generation_config.forced_decoder_ids = None
+                predicted_ids = self.model.generate(
+                    inputs,
+                    decoder_input_ids=prompt_input,
+                    generation_config=generation_config
+                )
+
+            decoded = self.processor.batch_decode(predicted_ids, skip_special_tokens=True)
+            results.extend(decoded)
+
+        return results

@@ -180,22 +180,23 @@ def calculate_medical_term_accuracy(references, predictions, bias_words_file):
     
 #     return evaluation_results
   
-def evaluate_model(model, jsonl_file, audio_dir, bias_words_file, num_samples=None):
+def evaluate_model(model, jsonl_file, audio_dir, bias_words_file, num_samples=None, batch_size=16):
     """
     Đánh giá mô hình trên tập dữ liệu
-    
+
     Args:
-        model: WhisperMedical model
+        model: WhisperMedical model (đã có transcribe_batch)
         jsonl_file: Đường dẫn đến file JSONL chứa data
         audio_dir: Thư mục chứa audio
         bias_words_file: Đường dẫn đến file bias words
         num_samples: Số lượng mẫu cần đánh giá (None = tất cả)
-    
+        batch_size: Kích thước batch để đánh giá
+
     Returns:
         Dictionary chứa kết quả đánh giá
     """
     from data_utils.data_processor import load_jsonl
-    
+
     # Đọc dữ liệu
     data = load_jsonl(jsonl_file)
     if num_samples:
@@ -205,41 +206,39 @@ def evaluate_model(model, jsonl_file, audio_dir, bias_words_file, num_samples=No
     bias_words_string = load_bias_words(bias_words_file)
 
     references = []
-    predictions = []
-    predictions_with_description = []
+    audio_paths = []
+    descriptions = []
 
-    for item in tqdm(data, desc="Evaluating"):
+    for item in data:
         file_name = item['file']
         transcript = item['text']
         description = item['description']
         audio_path = get_audio_path(file_name, audio_dir)
 
         references.append(transcript)
+        audio_paths.append(audio_path)
+        descriptions.append(description)
 
+    predictions = []
+    # Dự đoán theo batch không có description
+    print(f"Transcribing {len(audio_paths)} samples without description...")
+    for i in tqdm(range(0, len(audio_paths), batch_size), desc="Evaluating"):
+        batch_audio_paths = audio_paths[i:i+batch_size]
         try:
-            pred_no_desc = model.transcribe(audio_path)
-        except Exception:
-            pred_no_desc = "ERROR"
-        predictions.append(pred_no_desc)
-
-        try:
-            pred_with_desc = model.transcribe(audio_path, description, bias_words_string)
-        except Exception:
-            pred_with_desc = "ERROR"
-        predictions_with_description.append(pred_with_desc)
+            preds = model.transcribe_batch(batch_audio_paths)
+        except Exception as e:
+            preds = ["ERROR"] * len(batch_audio_paths)
+            print(f"Error during batch inference: {e}")
+        predictions.extend(preds)
 
     # Tính WER
     print(f"Calculating WER on {jsonl_file} with no description")
     wer_no_desc = calculate_wer(references, predictions)
-    # wer_with_desc = calculate_wer(references, predictions_with_description)
 
     evaluation_results = {
         "wer": {
-            "no_description": wer_no_desc,
-            # "with_description": wer_with_desc,
-            # "improvement": wer_no_desc - wer_with_desc,
-            # "improvement_percentage": (wer_no_desc - wer_with_desc) / wer_no_desc * 100 if wer_no_desc > 0 else 0
+            "no_description": wer_no_desc
         }
     }
 
-    return evaluation_results  
+    return evaluation_results
