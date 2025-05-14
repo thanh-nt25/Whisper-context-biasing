@@ -132,7 +132,7 @@ def evaluate_model(model, jsonl_file, audio_dir, bias_words_file=None, num_sampl
         all_references.extend(transcripts)
         all_predictions.extend(preds)
 
-    normalizer = BasicTextNormalizer(remove_diacritics=True)
+    normalizer = BasicTextNormalizer()
     all_references = [normalizer(t) for t in all_references]
     all_predictions = [normalizer(p) for p in all_predictions]
 
