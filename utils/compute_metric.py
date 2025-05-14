@@ -1,4 +1,4 @@
-import evaluate
+# import evaluate
 from transformers import WhisperTokenizer
 from jiwer import wer
 from tqdm import tqdm
@@ -6,7 +6,7 @@ from tqdm import tqdm
 import numpy as np
 import os
 
-wer_metric = evaluate.load("wer")
+# wer_metric = evaluate.load("wer")
 
 class BasicTextNormalizer:
     def __call__(self, s: str):
