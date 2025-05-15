@@ -115,10 +115,13 @@ def main():
         output_dir=args.output_dir,
         save_strategy="steps",
         per_device_train_batch_size=args.batch_size,
+        per_device_eval_batch_size=2,
+        eval_accumulation_steps=4,
+        gradient_checkpointing=True,
         gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
         learning_rate=args.learning_rate,
         num_train_epochs=args.num_epochs,
-        fp16=FP16,
+        fp16=True,
         save_steps=SAVE_STEPS,
         eval_steps=EVAL_STEPS,
         logging_steps=LOGGING_STEPS,
@@ -128,6 +131,7 @@ def main():
         remove_unused_columns=False,
         report_to=["wandb"],
         run_name="whisper-medical-biasing-2",
+        dataloader_num_workers=4,
     )
     
     
