@@ -17,39 +17,15 @@ from data_utils.data_processor import get_audio_path, load_bias_words
 from utils.compute_metric import BasicTextNormalizer
 
 def calculate_wer(references, predictions):
-    """
-    Tính Word Error Rate (WER)
-    
-    Args:
-        references: Danh sách các văn bản tham chiếu
-        predictions: Danh sách các văn bản dự đoán
-    
-    Returns:
-        WER tổng thể và WER cho từng mẫu
-    """
-    # Xử lý các trường hợp rỗng
     valid_pairs = [(ref, pred) for ref, pred in zip(references, predictions) 
                    if ref.strip() and pred is not None]
     
     if not valid_pairs:
-        return 1.0, [1.0] * len(references)  # Return worst WER if no valid pairs
+        return 1.0, [1.0] * len(references)
     
     refs, preds = zip(*valid_pairs)
     
-    # Tính WER tổng thể
     overall_wer = jiwer.wer(refs, preds)
-    
-    # Tính WER cho từng mẫu
-    # individual_wers = []
-    # for ref, pred in zip(references, predictions):
-    #     if not ref.strip() or pred is None:
-    #         individual_wers.append(1.0)  # Worst WER for invalid cases
-    #     else:
-    #         try:
-    #             wer = jiwer.wer([ref], [pred])
-    #             individual_wers.append(wer)
-    #         except:
-    #             individual_wers.append(1.0)  # Handle errors
     
     return overall_wer
 
@@ -122,7 +98,7 @@ def compute_metrics_whisper_with_prompt(eval_preds, tokenizer, prompt_ids_list=N
         gc.collect()
     
     # Lưu kết quả ra file
-    result_dir = os.path.join(os.getcwd(), "results")
+    result_dir = os.path.join("/kaggle/working", "results")
     os.makedirs(result_dir, exist_ok=True)
     
     with open(os.path.join(result_dir, "refs_and_preds.txt"), "w", encoding="utf-8") as f:
