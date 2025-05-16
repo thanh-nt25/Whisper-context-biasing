@@ -4,92 +4,177 @@ Script đánh giá mô hình Whisper medical
 
 import argparse
 import os
-import sys
+import torch
+import gc
 import json
 from pathlib import Path
 
-# Thêm thư mục gốc vào path
-sys.path.append(str(Path(__file__).parent.parent.absolute()))
 from models.whisper_medical import WhisperMedical
-from utils.evaluation import evaluate_model
-from config.config import (
-    MODEL_SAVE_DIR, DEV_JSONL, DEV_AUDIO_DIR, BIAS_WORDS_FILE
-)
+from data_utils.dataloader import WhisperMedicalDataset
+from data_utils.data_collator import WhisperDataCollator
+from utils.evaluation import compute_metrics_whisper_with_prompt
 
 def main():
     parser = argparse.ArgumentParser(description="Đánh giá mô hình Whisper medical")
     parser.add_argument("--model_dir", type=str, required=True, help="Thư mục chứa mô hình đã huấn luyện")
-    parser.add_argument("--test_jsonl", type=str, default=DEV_JSONL, help="Đường dẫn đến file JSONL test data")
-    parser.add_argument("--test_audio_dir", type=str, default=DEV_AUDIO_DIR, help="Thư mục chứa audio test")
-    parser.add_argument("--bias_words_file", type=str, default=BIAS_WORDS_FILE, help="Đường dẫn đến file bias words")
+    parser.add_argument("--test_jsonl", type=str, required=True, help="Đường dẫn đến file JSONL test data")
+    parser.add_argument("--test_audio_dir", type=str, required=True, help="Thư mục chứa audio test")
+    parser.add_argument("--bias_words_file", type=str, required=True, help="Đường dẫn đến file bias words")
     parser.add_argument("--output", type=str, default=None, help="Đường dẫn đến file kết quả đánh giá")
-    parser.add_argument("--no_bias_words", action="store_true", help="Không sử dụng bias words")
-    parser.add_argument("--num_samples", type=int, default=None, help="Số lượng mẫu cần đánh giá")
+    parser.add_argument("--compare_baseline", action="store_true", help="So sánh với Whisper cơ bản")
     
     args = parser.parse_args()
     
     # Thiết lập output file
+    if args.output is None:
+        eval_dir = os.path.join(os.path.dirname(args.model_dir), "evaluation")
+        os.makedirs(eval_dir, exist_ok=True)
+        model_name = os.path.basename(args.model_dir)
+        args.output = os.path.join(eval_dir, f"{model_name}_evaluation.json")
+    
+    # Đọc bias words từ file
+    with open(args.bias_words_file, 'r', encoding='utf-8') as f:
+        bias_words = [line.strip() for line in f if line.strip()]
+    
+    bias_words_string = ", ".join(bias_words)
+    
+    print(f"Loaded {len(bias_words)} bias words.")
     
     if args.model_dir.startswith("openai/"):
         whisper_medical = WhisperMedical(model_id=args.model_dir, freeze_encoder=False)
     else:
         whisper_medical = WhisperMedical()
-        whisper_medical.load(args.model_dir)
-
-    print(f"Evaluating model from {args.model_dir} on {args.test_jsonl}")
-    evaluation_results = evaluate_model(
-        whisper_medical, 
-        args.test_jsonl,
+        whisper_medical.load(args.model_dir)    
+        
+    # Tạo test dataset
+    test_dataset = WhisperMedicalDataset(
+        args.test_jsonl, 
+        whisper_medical.processor, 
         args.test_audio_dir,
-        None if args.no_bias_words or args.model_dir.startswith("openai/") else args.bias_words_file,
-        args.num_samples
+        bias_words_string,
+        max_prompt_length=190,
+        random_prob=0  # Không sử dụng perturbation trong test
     )
     
+    results = {
+        "with_description": {},
+        "without_description": {}
+    }
+    
+    # # Đánh giá với description
+    # total_samples = len(test_dataset)
+    # successes = 0
+    # error_count = 0
+    
+    # with_description_refs = []
+    # with_description_preds = []
+    
+    # print(f"Evaluating {total_samples} samples with description...")
+    
+    # for i, item in enumerate(test_dataset):
+    #     if i % 10 == 0:
+    #         print(f"Processing {i}/{total_samples}...")
+        
+    #     try:
+    #         audio_path = os.path.join(args.test_audio_dir, item["file_name"])
+    #         transcript = item["transcript"]
+    #         description = item["description"]
+            
+    #         # Transcribe với description
+    #         prediction = whisper_medical.transcribe(audio_path, description, bias_words_string)
+            
+    #         with_description_refs.append(transcript)
+    #         with_description_preds.append(prediction)
+            
+    #         successes += 1
+    #     except Exception as e:
+    #         print(f"Error processing sample {i}: {e}")
+    #         error_count += 1
+    
+    # # Tính WER cho with_description
+    # from utils.evaluation import calculate_wer
+    # wer_with_desc, _ = calculate_wer(with_description_refs, with_description_preds)
+    
+    # results["with_description"]["wer"] = wer_with_desc
+    # results["with_description"]["successful_samples"] = successes
+    # results["with_description"]["error_count"] = error_count
+    
+    # Đánh giá không có description
+    if args.compare_baseline:
+        without_description_refs = []
+        without_description_preds = []
+        successes = 0
+        error_count = 0
+        
+        print(f"Evaluating {total_samples} samples without description...")
+        
+        for i, item in enumerate(test_dataset):
+            if i % 10 == 0:
+                print(f"Processing {i}/{total_samples}...")
+            
+            try:
+                audio_path = os.path.join(args.test_audio_dir, item["file_name"])
+                transcript = item["transcript"]
+                
+                # Transcribe không có description
+                prediction = whisper_medical.transcribe(audio_path)
+                
+                without_description_refs.append(transcript)
+                without_description_preds.append(prediction)
+                
+                successes += 1
+            except Exception as e:
+                print(f"Error processing sample {i}: {e}")
+                error_count += 1
+        
+        # Tính WER cho without_description
+        wer_without_desc, _ = calculate_wer(without_description_refs, without_description_preds)
+        print(f"WER without description: {wer_without_desc:.4f}")
+        results["without_description"]["wer"] = wer_without_desc
+        # results["without_description"]["successful_samples"] = successes
+        # results["without_description"]["error_count"] = error_count
+        
+        # Tính cải thiện
+        # improvement = wer_without_desc - wer_with_desc
+        # improvement_percent = (improvement / wer_without_desc) * 100 if wer_without_desc > 0 else 0
+        
+        # results["improvement"] = {
+        #     "absolute": improvement,
+        #     "percent": improvement_percent
+        # }
     
     # Lưu kết quả đánh giá
     # with open(args.output, 'w') as f:
-    #     # Đảm bảo detailed_results không được ghi ra file (quá lớn)
-    #     results_to_save = {k: v for k, v in evaluation_results.items() if k != 'detailed_results'}
-    #     json.dump(results_to_save, f, indent=2)
+    #     json.dump(results, f, indent=2)
     
-    # # Lưu detailed_results riêng nếu cần
-    # detailed_output = args.output.replace('.json', '_detailed.json')
-    # with open(detailed_output, 'w') as f:
-    #     json.dump(evaluation_results['detailed_results'], f, indent=2)
+    # Lưu các dự đoán cụ thể
+    # predictions_dir = os.path.join(os.path.dirname(args.output), "predictions")
+    # os.makedirs(predictions_dir, exist_ok=True)
     
-    # Hiển thị kết quả tổng quan
-    print("\nKết quả đánh giá:")
-    print(f"WER không description: {evaluation_results['wer']['no_description']:.4f}")
-    # print(f"WER với description: {evaluation_results['wer']['with_description']:.4f}")
-    # print(f"Cải thiện: {evaluation_results['wer']['improvement']:.4f} ({evaluation_results['wer']['improvement_percentage']:.2f}%)")
+    # with open(os.path.join(predictions_dir, "with_description_predictions.txt"), 'w') as f:
+    #     for ref, pred in zip(with_description_refs, with_description_preds):
+    #         f.write(f"Ref: {ref}\n")
+    #         f.write(f"Pred: {pred}\n\n")
     
-    # print("\nĐộ chính xác nhận dạng thuật ngữ y tế:")
-    # print("Không description:")
-    # print(f"  Precision: {evaluation_results['medical_terms_no_desc']['precision']:.4f}")
-    # print(f"  Recall: {evaluation_results['medical_terms_no_desc']['recall']:.4f}")
-    # print(f"  F1: {evaluation_results['medical_terms_no_desc']['f1']:.4f}")
+    # if args.compare_baseline:
+    #     with open(os.path.join(predictions_dir, "without_description_predictions.txt"), 'w') as f:
+    #         for ref, pred in zip(without_description_refs, without_description_preds):
+    #             f.write(f"Ref: {ref}\n")
+    #             f.write(f"Pred: {pred}\n\n")
     
-    # print("Với description:")
-    # print(f"  Precision: {evaluation_results['medical_terms_with_desc']['precision']:.4f}")
-    # print(f"  Recall: {evaluation_results['medical_terms_with_desc']['recall']:.4f}")
-    # print(f"  F1: {evaluation_results['medical_terms_with_desc']['f1']:.4f}")
+    # Hiển thị kết quả
+    print("\nEvaluation Results:")
+    print(f"WER with description: {results['with_description']['wer']:.4f}")
     
-    # print(f"\nKết quả chi tiết đã được lưu vào {args.output} và {detailed_output}")
-    if args.output is None:
-        output_dir = os.path.join(os.path.dirname(args.model_dir), "evaluation")
-    else:
-        output_dir = args.output
-
-    os.makedirs(output_dir, exist_ok=True)
-
-    model_name = os.path.basename(args.model_dir.rstrip("/"))
-
-    txt_path = os.path.join(output_dir, f"{model_name}_evaluation_wer.txt")
-
-    wer_value = evaluation_results["wer"]["no_description"]
-
-    with open(txt_path, "w") as f:
-        f.write(f"{wer_value:.4f}\n")
+    # if args.compare_baseline:
+    #     print(f"WER without description: {results['without_description']['wer']:.4f}")
+    #     print(f"Improvement: {results['improvement']['absolute']:.4f} ({results['improvement']['percent']:.2f}%)")
+    
+    print(f"\nResults saved to {args.output}")
 
 if __name__ == "__main__":
+    # Giải phóng bộ nhớ trước khi bắt đầu
+    gc.collect()
+    torch.cuda.empty_cache()
+    
     main()

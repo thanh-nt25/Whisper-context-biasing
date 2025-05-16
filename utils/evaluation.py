@@ -14,7 +14,6 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent.absolute()))
 from utils.medical_utils import extract_medical_terms_from_bias_list
 from data_utils.data_processor import get_audio_path, load_bias_words
-
 from utils.compute_metric import BasicTextNormalizer
 
 def calculate_wer(references, predictions):
@@ -28,134 +27,119 @@ def calculate_wer(references, predictions):
     Returns:
         WER tổng thể và WER cho từng mẫu
     """
+    # Xử lý các trường hợp rỗng
+    valid_pairs = [(ref, pred) for ref, pred in zip(references, predictions) 
+                   if ref.strip() and pred is not None]
+    
+    if not valid_pairs:
+        return 1.0, [1.0] * len(references)  # Return worst WER if no valid pairs
+    
+    refs, preds = zip(*valid_pairs)
+    
     # Tính WER tổng thể
-    overall_wer = jiwer.wer(references, predictions)
+    overall_wer = jiwer.wer(refs, preds)
     
     # Tính WER cho từng mẫu
-    # individual_wers = [
-    #     jiwer.wer([ref], [pred]) 
-    #     for ref, pred in zip(references, predictions)
-    # ]
+    # individual_wers = []
+    # for ref, pred in zip(references, predictions):
+    #     if not ref.strip() or pred is None:
+    #         individual_wers.append(1.0)  # Worst WER for invalid cases
+    #     else:
+    #         try:
+    #             wer = jiwer.wer([ref], [pred])
+    #             individual_wers.append(wer)
+    #         except:
+    #             individual_wers.append(1.0)  # Handle errors
     
-    # return overall_wer, individual_wers
     return overall_wer
 
-def calculate_medical_term_accuracy(references, predictions, bias_words_file):
+def compute_metrics_whisper_with_prompt(eval_preds, tokenizer, prompt_ids_list=None):
     """
-    Tính độ chính xác trong nhận dạng thuật ngữ y tế
+    Tính metrics cho model với prompts
     
     Args:
-        references: Danh sách các văn bản tham chiếu
-        predictions: Danh sách các văn bản dự đoán
-        bias_words_file: Đường dẫn đến file bias words
+        eval_preds: Tuple (logits, labels) từ evaluation
+        tokenizer: Tokenizer để decode predictions
+        prompt_ids_list: List các prompt IDs (để loại bỏ phần prompt từ predictions)
     
     Returns:
-        Dictionary chứa precision, recall, F1
+        Dictionary với metrics
     """
-    tp = 0  # True Positive
-    fp = 0  # False Positive
-    fn = 0  # False Negative
+    # Giải phóng bộ nhớ
+    import gc
+    import torch
+    gc.collect()
+    torch.cuda.empty_cache()
     
-    for ref, pred in zip(references, predictions):
-        # Trích xuất thuật ngữ y tế
-        ref_terms = extract_medical_terms_from_bias_list(ref, bias_words_file)
-        pred_terms = extract_medical_terms_from_bias_list(pred, bias_words_file)
+    logits, labels = eval_preds
+    
+    # Bỏ qua padding token trong labels
+    labels = labels.copy()
+    labels[labels == -100] = tokenizer.pad_token_id
+    
+    # Chuyển logits thành predictions
+    predictions = logits.argmax(axis=-1)
+    
+    # Nếu có prompt_ids_list, bỏ đi phần prompt từ predictions
+    if prompt_ids_list:
+        batch_size = min(len(predictions), len(prompt_ids_list))
+        for i in range(batch_size):
+            if i < len(prompt_ids_list):
+                prompt_len = len(prompt_ids_list[i])
+                # Loại bỏ phần prompt từ predictions và labels
+                if prompt_len < len(predictions[i]):
+                    predictions[i] = predictions[i][prompt_len:]
+                if prompt_len < len(labels[i]):
+                    labels[i] = labels[i][prompt_len:]
+    
+    # Xử lý batch để tránh OOM
+    batch_size = 16
+    total = len(predictions)
+    references = []
+    decoded_preds = []
+    
+    for i in range(0, total, batch_size):
+        batch_pred = predictions[i:min(i+batch_size, total)]
+        batch_label = labels[i:min(i+batch_size, total)]
         
-        # True Positive: từ có trong cả ref và pred
-        tp += len(set(ref_terms) & set(pred_terms))
+        # Decode predictions và labels
+        pred_str = tokenizer.batch_decode(batch_pred, skip_special_tokens=True)
+        label_str = tokenizer.batch_decode(batch_label, skip_special_tokens=True)
         
-        # False Positive: từ có trong pred nhưng không có trong ref
-        fp += len(set(pred_terms) - set(ref_terms))
         
-        # False Negative: từ có trong ref nhưng không có trong pred
-        fn += len(set(ref_terms) - set(pred_terms))
+        # Normalize
+        normalizer = BasicTextNormalizer()
+        pred_str = [normalizer(s) for s in pred_str]
+        label_str = [normalizer(s) for s in label_str]
+        # pred_str = [s.strip().lower() for s in pred_str]
+        # label_str = [s.strip().lower() for s in label_str]
+        
+        references.extend(label_str)
+        decoded_preds.extend(pred_str)
+        
+        # Giải phóng bộ nhớ
+        del batch_pred, batch_label
+        gc.collect()
     
-    # Tính precision
-    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+    # Lưu kết quả ra file
+    result_dir = os.path.join(os.getcwd(), "results")
+    os.makedirs(result_dir, exist_ok=True)
     
-    # Tính recall
-    recall = tp / (tp + fn) if (tp + fn) > 0 else 0
-    
-    # Tính F1
-    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
-    
-    return {
-        "precision": precision,
-        "recall": recall,
-        "f1": f1,
-        "true_positives": tp,
-        "false_positives": fp,
-        "false_negatives": fn
-    }
-
-def evaluate_model(model, jsonl_file, audio_dir, bias_words_file=None, num_samples=None, batch_size=16):
-    """
-    Đánh giá mô hình trên tập dữ liệu
-
-    Args:
-        model: WhisperMedical model (đã có transcribe_batch)
-        jsonl_file: Đường dẫn đến file JSONL chứa data
-        audio_dir: Thư mục chứa audio
-        bias_words_file: Đường dẫn đến file bias words
-        num_samples: Số lượng mẫu cần đánh giá (None = tất cả)
-        batch_size: Kích thước batch để đánh giá
-
-    Returns:
-        Dictionary chứa kết quả đánh giá
-    """
-    from data_utils.data_processor import load_jsonl
-
-    data = load_jsonl(jsonl_file)
-    if num_samples:
-        data = data[:num_samples]
-
-    bias_words_string = load_bias_words(bias_words_file) if bias_words_file else None
-    
-    batches = [
-        data[i:i + batch_size] for i in range(0, len(data), batch_size)
-    ]
-
-    all_references = []
-    all_predictions = []
-    
-    for batch in tqdm(batches, desc="Evaluating"):
-        audio_paths = [get_audio_path(d["file"], audio_dir) for d in batch]
-        descriptions = [d["description"] for d in batch] if bias_words_string else [None] * len(batch)
-        transcripts = [d["text"] for d in batch]
-
-        try:
-            preds = model.transcribe_batch(audio_paths, descriptions, bias_words_string)
-        except Exception as e:
-            print(f"Error in batch transcription: {e}")
-            preds = ["ERROR"] * len(audio_paths)
-
-        all_references.extend(transcripts)
-        all_predictions.extend(preds)
-
-    normalizer = BasicTextNormalizer()
-    all_references = [normalizer(t) for t in all_references]
-    all_predictions = [normalizer(p) for p in all_predictions]
-
-    wer = calculate_wer(all_references, all_predictions)
-    print(f"Evaluation WER: {wer:.4f}")
-    
-    output_txt = os.path.join("/kaggle/working/", f"refs_and_preds_of_{model}.txt")
-    
-    with open(output_txt, "w", encoding="utf-8") as f:
-        for ref, pred in zip(all_references, all_predictions):
+    with open(os.path.join(result_dir, "refs_and_preds.txt"), "w", encoding="utf-8") as f:
+        for ref, pred in zip(references, decoded_preds):
             f.write(f"Ref: {ref}\n")
             f.write(f"Pred: {pred}\n\n")
-    print(f"Saved references and predictions file to {output_txt}")
     
+    # Tính WER
+    wer = calculate_wer(references, decoded_preds)
     
-    evaluation_results = {
-        "wer": {
-            "no_description": wer
-        }
+    # Tính thêm CER
+    # cer = jiwer.cer(references, decoded_preds)
+    
+    # Phân tích lỗi cụ thể cho thuật ngữ y tế
+    return {
+        "wer": wer,
     }
-
-    return evaluation_results
-
 
 
 # def evaluate_model(model, jsonl_file, audio_dir, bias_words_file, num_samples=None):

@@ -23,8 +23,8 @@ from config.config import (
     RANDOM_CONTEXT_PROB, RANDOM_CONTEXTS_SIZE, WEIGHT_FACTORS
 )
 from transformers import TrainingArguments
+from utils.evaluation import compute_metrics_whisper_with_prompt
 
-from utils.compute_metric import compute_metrics_whisper_with_prompt
 
 def main():
     parser = argparse.ArgumentParser(description="Fine-tune Whisper model cho y tế")

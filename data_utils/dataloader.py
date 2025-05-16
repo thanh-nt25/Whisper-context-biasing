@@ -11,6 +11,8 @@ from typing import Dict, List, Union
 from transformers import WhisperProcessor
 import sys
 from pathlib import Path
+import random
+import json
 
 # Thêm thư mục gốc vào path
 sys.path.append(str(Path(__file__).parent.parent.absolute()))
@@ -20,12 +22,33 @@ class WhisperMedicalDataset(Dataset):
     """
     Dataset cho fine-tuning Whisper với medical prompts từ JSONL
     """
-    def __init__(self, jsonl_file, processor, audio_dir, bias_words_string=None, max_prompt_length=100):
-        self.data = load_jsonl(jsonl_file)
+    def __init__(self, jsonl_file, processor, audio_dir, bias_words_string=None, max_prompt_length=190, random_prob=0.05):
+        """
+        Khởi tạo dataset
+        
+        Args:
+            jsonl_file: Đường dẫn đến file JSONL chứa metadata
+            processor: WhisperProcessor để xử lý dữ liệu
+            audio_dir: Thư mục chứa file audio
+            bias_words_string: Chuỗi các bias words cố định (có thể None)
+            max_prompt_length: Độ dài tối đa cho prompt
+            random_prob: Xác suất cho context perturbation
+        """
         self.processor = processor
         self.audio_dir = audio_dir
         self.bias_words_string = bias_words_string
         self.max_prompt_length = max_prompt_length
+        self.random_prob = random_prob
+        self.data = self._load_jsonl(jsonl_file)
+        self.prompt_pool = [item["description"] for item in self.data]  # Tạo pool các description
+        
+    def _load_jsonl(self, jsonl_file):
+        """Load data từ file JSONL"""
+        data = []
+        with open(jsonl_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                data.append(json.loads(line))
+        return data
     
     def __len__(self):
         return len(self.data)
@@ -38,11 +61,18 @@ class WhisperMedicalDataset(Dataset):
         description = item['description']
         
         # Lấy đường dẫn âm thanh
-        audio_path = get_audio_path(file_name, self.audio_dir)
+        audio_path = os.path.join(self.audio_dir, file_name)
         
-        # Tạo prompt
-        prompt = create_prompt(description, self.bias_words_string)
-        
+        # Tạo prompt với bias words
+        if self.bias_words_string:
+            prompt = f"{description} Medical terms: {self.bias_words_string}"
+        else:
+            prompt = description
+            
+        # Áp dụng context perturbation trong quá trình huấn luyện
+        if 'train' in self.audio_dir and random.random() < self.random_prob:
+            prompt = random.choice(self.prompt_pool)
+            
         # Xử lý âm thanh
         try:
             audio, sr = librosa.load(audio_path, sr=16000)
@@ -53,37 +83,44 @@ class WhisperMedicalDataset(Dataset):
             ).input_features.squeeze(0)
         except Exception as e:
             print(f"Error processing audio file {audio_path}: {e}")
+            # Trả về tensor rỗng trong trường hợp lỗi
             input_features = torch.zeros((1, 80, 3000))
         
-        # Tokenize prompt cho decoder input với truncation nếu cần
+        # Tokenize prompt với token đặc biệt
+        prompt_with_tokens = f"<|startofprev|>{prompt}<|endofprev|><|startoftranscript|>"
+        
+        # Tokenize và cắt bỏ nếu prompt quá dài
         prompt_ids = self.processor.tokenizer(
-            prompt, 
-            return_tensors="pt",
-            max_length=self.max_prompt_length,
-            truncation=True
+            prompt_with_tokens, 
+            return_tensors="pt", 
+            add_special_tokens=False
         ).input_ids.squeeze(0)
         
-        # Tokenize transcript cho labels
-        # Thay vì sử dụng as_target_processor(), sử dụng tokenizer trực tiếp
-        label_ids = self.processor.tokenizer(
-            transcript,
-            return_tensors="pt"
-        ).input_ids.squeeze(0)
+        if len(prompt_ids) > self.max_prompt_length:
+            prompt_ids = prompt_ids[:self.max_prompt_length]
+        
+        # Tokenize transcript
+        with self.processor.tokenizer.as_target_processor():
+            labels = self.processor.tokenizer(
+                transcript,
+                return_tensors="pt"
+            ).input_ids.squeeze(0)
         
         return {
             "input_features": input_features,
             "decoder_input_ids": prompt_ids,
-            "labels": label_ids,
+            "labels": labels,
             "transcript": transcript,
             "file_name": file_name,
             "description": description
         }
+
 @dataclass
 class WhisperDataCollator:
     """
     Collator cho batching dữ liệu Whisper
     """
-    processor: WhisperProcessor
+    processor: any
 
     def __call__(self, features: List[Dict[str, Union[torch.Tensor, List[int]]]]) -> Dict[str, torch.Tensor]:
         # Pad input features
@@ -98,11 +135,9 @@ class WhisperDataCollator:
             padding_value=self.processor.tokenizer.pad_token_id
         )
         
-        # Tạo attention mask cho decoder
+        # Tạo decoder attention mask
         decoder_attention_mask = torch.ones_like(decoder_input_ids)
-        for i, seq in enumerate(decoder_input_ids):
-            pad_mask = (seq == self.processor.tokenizer.pad_token_id)
-            decoder_attention_mask[i, pad_mask] = 0
+        decoder_attention_mask[decoder_input_ids == self.processor.tokenizer.pad_token_id] = 0
         
         # Pad labels (transcript)
         labels = [feature["labels"] for feature in features]
@@ -113,11 +148,11 @@ class WhisperDataCollator:
         )
         
         # Lưu metadata
-        transcripts = [feature["transcript"] for feature in features]
-        file_names = [feature["file_name"] for feature in features]
-        descriptions = [feature["description"] for feature in features]
+        transcripts = [feature.get("transcript", "") for feature in features]
+        file_names = [feature.get("file_name", "") for feature in features]
+        descriptions = [feature.get("description", "") for feature in features]
         
-        return {
+        batch = {
             "input_features": input_features,
             "decoder_input_ids": decoder_input_ids,
             "decoder_attention_mask": decoder_attention_mask,
@@ -126,7 +161,8 @@ class WhisperDataCollator:
             "file_names": file_names,
             "descriptions": descriptions
         }
-
+        
+        return batch
 
 # """
 # Dataset và DataCollator cho Whisper medical fine-tuning dựa trên JSONL
