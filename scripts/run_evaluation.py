@@ -100,37 +100,37 @@ def main():
     # results["with_description"]["error_count"] = error_count
     
     # Đánh giá không có description
-    if args.compare_baseline:
-        without_description_refs = []
-        without_description_preds = []
-        successes = 0
-        error_count = 0
+    # if args.compare_baseline:
+    without_description_refs = []
+    without_description_preds = []
+    successes = 0
+    error_count = 0
+    
+    print(f"Evaluating {total_samples} samples without description...")
+    
+    for i, item in enumerate(test_dataset):
+        if i % 10 == 0:
+            print(f"Processing {i}/{total_samples}...")
         
-        print(f"Evaluating {total_samples} samples without description...")
-        
-        for i, item in enumerate(test_dataset):
-            if i % 10 == 0:
-                print(f"Processing {i}/{total_samples}...")
+        try:
+            audio_path = os.path.join(args.test_audio_dir, item["file_name"])
+            transcript = item["transcript"]
             
-            try:
-                audio_path = os.path.join(args.test_audio_dir, item["file_name"])
-                transcript = item["transcript"]
-                
-                # Transcribe không có description
-                prediction = whisper_medical.transcribe(audio_path)
-                
-                without_description_refs.append(transcript)
-                without_description_preds.append(prediction)
-                
-                successes += 1
-            except Exception as e:
-                print(f"Error processing sample {i}: {e}")
-                error_count += 1
-        
-        # Tính WER cho without_description
-        wer_without_desc, _ = calculate_wer(without_description_refs, without_description_preds)
-        print(f"WER without description: {wer_without_desc:.4f}")
-        results["without_description"]["wer"] = wer_without_desc
+            # Transcribe không có description
+            prediction = whisper_medical.transcribe(audio_path)
+            
+            without_description_refs.append(transcript)
+            without_description_preds.append(prediction)
+            
+            successes += 1
+        except Exception as e:
+            print(f"Error processing sample {i}: {e}")
+            error_count += 1
+    
+    # Tính WER cho without_description
+    wer_without_desc, _ = calculate_wer(without_description_refs, without_description_preds)
+    print(f"WER without description: {wer_without_desc:.4f}")
+    results["without_description"]["wer"] = wer_without_desc
         # results["without_description"]["successful_samples"] = successes
         # results["without_description"]["error_count"] = error_count
         
