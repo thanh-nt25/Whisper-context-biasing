@@ -101,11 +101,10 @@ class WhisperMedicalDataset(Dataset):
         
         # Tokenize transcript
         # with self.processor.tokenizer.as_target_processor():
-        with self.processor.as_target_processor():
-            labels = self.processor.tokenizer(
-                transcript,
-                return_tensors="pt"
-            ).input_ids.squeeze(0)
+        labels = self.processor.tokenizer(
+            transcript,
+            return_tensors="pt"
+        ).input_ids.squeeze(0)
         
         return {
             "input_features": input_features,
