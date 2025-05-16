@@ -65,9 +65,9 @@ def main():
     }
     
     # # Đánh giá với description
-    # total_samples = len(test_dataset)
-    # successes = 0
-    # error_count = 0
+    total_samples = len(test_dataset)
+    successes = 0
+    error_count = 0
     
     # with_description_refs = []
     # with_description_preds = []
