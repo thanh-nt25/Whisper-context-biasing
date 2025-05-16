@@ -100,7 +100,8 @@ class WhisperMedicalDataset(Dataset):
             prompt_ids = prompt_ids[:self.max_prompt_length]
         
         # Tokenize transcript
-        with self.processor.tokenizer.as_target_processor():
+        # with self.processor.tokenizer.as_target_processor():
+        with self.processor.as_target_processor():
             labels = self.processor.tokenizer(
                 transcript,
                 return_tensors="pt"
