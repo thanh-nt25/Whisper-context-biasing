@@ -8,11 +8,14 @@ import torch
 import gc
 import json
 from pathlib import Path
+import sys
 
 from models.whisper_medical import WhisperMedical
 from data_utils.dataloader import WhisperMedicalDataset
 from data_utils.data_collator import WhisperDataCollator
 from utils.evaluation import compute_metrics_whisper_with_prompt
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 def main():
     parser = argparse.ArgumentParser(description="Đánh giá mô hình Whisper medical")
