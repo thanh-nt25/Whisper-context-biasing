@@ -12,8 +12,8 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.whisper_medical import WhisperMedical
-from data_utils.dataloader import WhisperMedicalDataset
-from data_utils.data_collator import WhisperDataCollator
+from data_utils.dataloader import WhisperMedicalDataset, WhisperDataCollator
+# from data_utils.data_collator import WhisperDataCollator
 from utils.evaluation import compute_metrics_whisper_with_prompt
 
 
