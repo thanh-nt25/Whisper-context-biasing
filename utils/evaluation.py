@@ -157,7 +157,7 @@ def compute_metrics_whisper_baseline(eval_preds, tokenizer, result_dir="/kaggle/
     # valid_sample_count = 0
     # total_wer_sum = 0
     # batch_size = 1  # Xử lý từng mẫu một
-    temp = tokenizer.decode(pred_ids[i:i+1][0], skip_special_tokens=True)
+    temp = tokenizer.decode(pred_ids[0:1][0], skip_special_tokens=True)
     # label_strs = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
     
     # try:
