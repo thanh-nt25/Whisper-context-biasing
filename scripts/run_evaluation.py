@@ -91,7 +91,7 @@ def main():
         tokenizer=whisper_medical.processor.tokenizer,
         # prompt_ids_list=None,  # if exists
         data_collator=WhisperDataCollator(whisper_medical.processor),
-        compute_metrics=True,
+        # compute_metrics=True,
     )
 
     results = trainer.evaluate(eval_dataset=test_dataset)
