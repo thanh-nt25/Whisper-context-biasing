@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from utils.compute_metric import BasicTextNormalizer
 
 from models.whisper_medical import WhisperMedical
 from data_utils.dataloader import WhisperMedicalDataset, WhisperDataCollator
@@ -66,6 +67,69 @@ def test_model_basic_functionality(whisper_medical, audio_path):
     
     print(f"Generated transcription: {transcription}")
     return transcription
+  
+def simple_evaluation(model, tokenizer, test_dataset, result_file="simple_eval_results.txt"):
+    """
+    Hàm đánh giá đơn giản không sử dụng trainer
+    """
+    model.eval()
+    device = next(model.parameters()).device
+    
+    all_references = []
+    all_predictions = []
+    
+    # Mở file kết quả
+    with open(result_file, "w", encoding="utf-8") as f:
+        f.write("file_name\treference\tprediction\n")
+        
+        # Xử lý từng mẫu
+        for i in range(len(test_dataset)):
+            if i % 10 == 0:
+                print(f"Processing sample {i+1}/{len(test_dataset)}")
+            
+            # Lấy mẫu và đưa lên device
+            sample = test_dataset[i]
+            input_features = sample["input_features"].unsqueeze(0).to(device)
+            
+            # Chạy inference
+            with torch.no_grad():
+                generated_ids = model.generate(
+                    input_features,
+                    max_length=256
+                )
+            
+            # Decode kết quả
+            transcription = tokenizer.batch_decode(
+                generated_ids, 
+                skip_special_tokens=True
+            )[0].strip()
+            
+            # Lấy transcription tham chiếu
+            reference = sample["transcript"]
+            
+            # Lưu vào danh sách để tính WER
+            all_references.append(reference)
+            all_predictions.append(transcription)
+            
+            # Ghi ra file
+            f.write(f"{sample['file_name']}\t{reference}\t{transcription}\n")
+            
+            # Giải phóng bộ nhớ
+            del input_features, generated_ids
+            if i % 20 == 19:
+                gc.collect()
+                torch.cuda.empty_cache()
+    
+    # Tính WER
+    normalizer = BasicTextNormalizer()
+    norm_refs = [normalizer(ref) for ref in all_references]
+    norm_preds = [normalizer(pred) for pred in all_predictions]
+    
+    wer_score = wer(norm_refs, norm_preds) * 100
+    print(f"Evaluation complete. WER: {wer_score:.2f}%")
+    
+    return {"wer": wer_score}  
+
 # def calculate_wer(references, predictions):
 #     valid_pairs = [(ref, pred) for ref, pred in zip(references, predictions) 
 #                    if ref.strip() and pred is not None]
@@ -124,13 +188,22 @@ def main():
     
     print(f"Test dataset created with {len(test_dataset)} samples")
     
-    sample_audio_path = os.path.join(args.test_audio_dir, test_dataset.data[0]['file'])
+    test_model_basic_functionality(whisper_medical, sample_audio_path)
     
-    print("\n=== Testing basic model functionality ===")
-    transcription = test_model_basic_functionality(whisper_medical, sample_audio_path)
+    # 2. Thay vì dùng trainer.evaluate, sử dụng hàm đánh giá đơn giản
+    print("\n=== Running simple evaluation ===")
+    results = simple_evaluation(
+        model=whisper_medical.model,
+        tokenizer=whisper_medical.processor.tokenizer,
+        test_dataset=test_dataset,
+        result_file=args.output.replace(".json", ".txt")
+    )
     
-    reference = test_dataset.data[0]['text']
-    print(f"Reference transcription: {reference}")
+    # 3. Lưu kết quả dưới dạng JSON
+    with open(args.output, "w", encoding="utf-8") as f:
+        json.dump(results, f, indent=2)
+    
+    print(f"Evaluation results: {results}")
     
     # for i in range(min(3, len(test_dataset))):
     #     sample = test_dataset[i]
