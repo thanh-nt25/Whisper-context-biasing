@@ -74,6 +74,14 @@ def main():
         random_prob=0  # Không sử dụng perturbation trong test
     )
     
+    training_args = TrainingArguments(
+        output_dir=args.output_dir,
+        per_device_eval_batch_size=2,
+        remove_unused_columns=False,
+        do_eval=True,
+        report_to="none",  # Không cần push log
+    )
+    
     trainer = WhisperMedicalTrainer(
         model=whisper_medical.model,
         args=training_args,
