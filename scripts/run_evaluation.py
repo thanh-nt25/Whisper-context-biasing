@@ -33,6 +33,38 @@ def my_compute_metrics(eval_preds):
     # prompt_ids_list=None
   )
   
+def test_model_basic_functionality(whisper_medical, audio_path):
+    """Kiểm tra chức năng cơ bản của model với một file âm thanh"""
+    print(f"Testing model with audio: {audio_path}")
+    
+    # Tải âm thanh
+    audio, sr = librosa.load(audio_path, sr=16000)
+    
+    # Xử lý đầu vào
+    input_features = whisper_medical.processor(
+        audio, 
+        sampling_rate=16000, 
+        return_tensors="pt"
+    ).input_features.to(whisper_medical.device)
+    
+    print(f"Input features shape: {input_features.shape}")
+    
+    # Chạy inference với model
+    print("Running model.generate()...")
+    with torch.no_grad():
+        generated_ids = whisper_medical.model.generate(
+            input_features,
+            max_length=256
+        )
+    
+    # Decode kết quả
+    transcription = whisper_medical.processor.tokenizer.batch_decode(
+        generated_ids, 
+        skip_special_tokens=True
+    )[0].strip()
+    
+    print(f"Generated transcription: {transcription}")
+    return transcription
 # def calculate_wer(references, predictions):
 #     valid_pairs = [(ref, pred) for ref, pred in zip(references, predictions) 
 #                    if ref.strip() and pred is not None]
@@ -91,39 +123,47 @@ def main():
     
     print(f"Test dataset created with {len(test_dataset)} samples")
     
-    for i in range(min(3, len(test_dataset))):
-        sample = test_dataset[i]
-        print(f"Sample {i}:")
-        print(f"  Keys: {sample.keys()}")
-        print(f"  Input shape: {sample['input_features'].shape if 'input_features' in sample else 'N/A'}")
-        print(f"  Label shape: {sample['labels'].shape if 'labels' in sample else 'N/A'}")
+    sample_audio_path = os.path.join(args.test_audio_dir, test_dataset.data[0]['file'])
     
-    training_args = TrainingArguments(
-        output_dir="/kaggle/working",
-        per_device_eval_batch_size=1,
-        eval_accumulation_steps=2,
-        remove_unused_columns=False,
-        do_eval=True,
-        report_to="none",  # Không cần push log
-    )
+    print("\n=== Testing basic model functionality ===")
+    transcription = test_model_basic_functionality(whisper_medical, sample_audio_path)
     
-    trainer = WhisperMedicalTrainer(
-        model=whisper_medical.model,
-        args=training_args,
-        tokenizer=whisper_medical.processor.tokenizer,
-        # data_collator=DebugWhisperDataCollator(whisper_medical.processor),
-        # prompt_ids_list=None,  # if exists
-        data_collator=WhisperDataCollator(whisper_medical.processor),
-        compute_metrics=my_compute_metrics
-    )
+    reference = test_dataset.data[0]['text']
+    print(f"Reference transcription: {reference}")
+    
+    # for i in range(min(3, len(test_dataset))):
+    #     sample = test_dataset[i]
+    #     print(f"Sample {i}:")
+    #     print(f"  Keys: {sample.keys()}")
+    #     print(f"  Input shape: {sample['input_features'].shape if 'input_features' in sample else 'N/A'}")
+    #     print(f"  Label shape: {sample['labels'].shape if 'labels' in sample else 'N/A'}")
+    
+    # training_args = TrainingArguments(
+    #     output_dir="/kaggle/working",
+    #     per_device_eval_batch_size=1,
+    #     eval_accumulation_steps=2,
+    #     remove_unused_columns=False,
+    #     do_eval=True,
+    #     report_to="none",  # Không cần push log
+    # )
+    
+    # trainer = WhisperMedicalTrainer(
+    #     model=whisper_medical.model,
+    #     args=training_args,
+    #     tokenizer=whisper_medical.processor.tokenizer,
+    #     # data_collator=DebugWhisperDataCollator(whisper_medical.processor),
+    #     # prompt_ids_list=None,  # if exists
+    #     data_collator=WhisperDataCollator(whisper_medical.processor),
+    #     compute_metrics=my_compute_metrics
+    # )
 
-    print(f"Before evaluation, test_dataset has {len(test_dataset)} samples")
+    # print(f"Before evaluation, test_dataset has {len(test_dataset)} samples")
     
-    results = trainer.evaluate(eval_dataset=test_dataset)
-    print(results)
+    # results = trainer.evaluate(eval_dataset=test_dataset)
+    # print(results)
     
-    with open("test_results.json", "w", encoding="utf-8") as f:
-      json.dump(results, f, indent=2)
+    # with open("test_results.json", "w", encoding="utf-8") as f:
+    #   json.dump(results, f, indent=2)
       
 if __name__ == "__main__":
     # Giải phóng bộ nhớ trước khi bắt đầu
