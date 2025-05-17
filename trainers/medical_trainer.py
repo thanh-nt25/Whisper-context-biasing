@@ -56,37 +56,37 @@ class WhisperMedicalTrainer(Trainer):
         Tính loss cho mô hình với context perturbation
         """
         # Áp dụng context perturbation nếu có random_contexts
-        if self.random_contexts and random.random() < self.random_context_prob:
-            batch_size = inputs["decoder_input_ids"].shape[0]
-            for i in range(batch_size):
-                if random.random() < self.random_context_prob:
-                    # Chọn ngẫu nhiên một prompt
-                    random_prompt = random.choice(self.random_contexts)
-                    random_prompt_ids = self.tokenizer(
-                        random_prompt, 
-                        return_tensors="pt"
-                    ).input_ids.squeeze(0).to(inputs["decoder_input_ids"].device)
+        # if self.random_contexts and random.random() < self.random_context_prob:
+        #     batch_size = inputs["decoder_input_ids"].shape[0]
+        #     for i in range(batch_size):
+        #         if random.random() < self.random_context_prob:
+        #             # Chọn ngẫu nhiên một prompt
+        #             random_prompt = random.choice(self.random_contexts)
+        #             random_prompt_ids = self.tokenizer(
+        #                 random_prompt, 
+        #                 return_tensors="pt"
+        #             ).input_ids.squeeze(0).to(inputs["decoder_input_ids"].device)
                     
-                    # Đảm bảo kích thước phù hợp
-                    max_len = inputs["decoder_input_ids"].shape[1]
-                    if len(random_prompt_ids) > max_len:
-                        random_prompt_ids = random_prompt_ids[:max_len]
-                    elif len(random_prompt_ids) < max_len:
-                        padding = torch.ones(
-                            max_len - len(random_prompt_ids), 
-                            dtype=torch.long
-                        ) * self.tokenizer.pad_token_id
-                        padding = padding.to(inputs["decoder_input_ids"].device)
-                        random_prompt_ids = torch.cat([random_prompt_ids, padding])
+        #             # Đảm bảo kích thước phù hợp
+        #             max_len = inputs["decoder_input_ids"].shape[1]
+        #             if len(random_prompt_ids) > max_len:
+        #                 random_prompt_ids = random_prompt_ids[:max_len]
+        #             elif len(random_prompt_ids) < max_len:
+        #                 padding = torch.ones(
+        #                     max_len - len(random_prompt_ids), 
+        #                     dtype=torch.long
+        #                 ) * self.tokenizer.pad_token_id
+        #                 padding = padding.to(inputs["decoder_input_ids"].device)
+        #                 random_prompt_ids = torch.cat([random_prompt_ids, padding])
                     
-                    # Thay thế prompt
-                    inputs["decoder_input_ids"][i] = random_prompt_ids
+        #             # Thay thế prompt
+        #             inputs["decoder_input_ids"][i] = random_prompt_ids
         
         # Sử dụng forward pass tự động và tính loss mặc định
         outputs = model(
             input_features=inputs.get("input_features"),
-            decoder_input_ids=inputs.get("decoder_input_ids"),
-            decoder_attention_mask=inputs.get("decoder_attention_mask", None),
+            # decoder_input_ids=inputs.get("decoder_input_ids"),
+            # decoder_attention_mask=inputs.get("decoder_attention_mask", None),
             labels=inputs.get("labels")
         )
         

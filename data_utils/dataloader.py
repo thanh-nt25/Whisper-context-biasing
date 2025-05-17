@@ -125,22 +125,22 @@ class WhisperDataCollator:
     def __call__(self, features: List[Dict[str, Union[torch.Tensor, List[int]]]]) -> Dict[str, torch.Tensor]:
         # Pad input features
         input_features = [feature["input_features"] for feature in features]
-        input_features = torch.nn.utils.rnn.pad_sequence(input_features, batch_first=True)
+        input_features = torch.nn.utils.rnn.pad_sequence(input_features, batch_first=True) # make four dimension input features
         
-        if input_features.dim() == 4 and input_features.shape[1] == 1:
-          input_features = input_features.squeeze(1)
+        # if input_features.dim() == 4 and input_features.shape[1] == 1:
+        #   input_features = input_features.squeeze(1)
         
         # Pad decoder_input_ids (prompt)
-        decoder_input_ids = [feature["decoder_input_ids"] for feature in features]
-        decoder_input_ids = torch.nn.utils.rnn.pad_sequence(
-            decoder_input_ids, 
-            batch_first=True, 
-            padding_value=self.processor.tokenizer.pad_token_id
-        )
+        # decoder_input_ids = [feature["decoder_input_ids"] for feature in features]
+        # decoder_input_ids = torch.nn.utils.rnn.pad_sequence(
+        #     decoder_input_ids, 
+        #     batch_first=True, 
+        #     padding_value=self.processor.tokenizer.pad_token_id
+        # )
         
         # Tạo decoder attention mask
-        decoder_attention_mask = torch.ones_like(decoder_input_ids)
-        decoder_attention_mask[decoder_input_ids == self.processor.tokenizer.pad_token_id] = 0
+        # decoder_attention_mask = torch.ones_like(decoder_input_ids)
+        # decoder_attention_mask[decoder_input_ids == self.processor.tokenizer.pad_token_id] = 0
         
         # Pad labels (transcript)
         labels = [feature["labels"] for feature in features]
@@ -158,7 +158,7 @@ class WhisperDataCollator:
         batch = {
             "input_features": input_features,
             "decoder_input_ids": decoder_input_ids,
-            "decoder_attention_mask": decoder_attention_mask,
+            # "decoder_attention_mask": decoder_attention_mask,
             "labels": labels,
             "transcripts": transcripts,
             "file_names": file_names,
