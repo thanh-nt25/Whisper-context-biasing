@@ -68,7 +68,7 @@ if __name__ == "__main__":
     model.config.suppress_tokens = []
     
     root_path = "results/"
-    os.makedirs(os.path.join(root_path, args.exp_name), exist_ok=True)
+    os.makedirs(os.path.join(root_path), exist_ok=True)
     
     training_args = Seq2SeqTrainingArguments(
         output_dir=os.path.join(root_path, "models"),
