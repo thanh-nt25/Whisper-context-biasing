@@ -10,6 +10,7 @@ import gc
 import json
 from pathlib import Path
 import sys
+from jiwer import wer
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils.compute_metric import BasicTextNormalizer
 
