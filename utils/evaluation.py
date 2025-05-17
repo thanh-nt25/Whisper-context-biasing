@@ -153,25 +153,20 @@ def compute_metrics_whisper_baseline(eval_preds, tokenizer, result_dir="/kaggle/
     
     label_ids = labels.copy()
     label_ids[label_ids == -100] = tokenizer.pad_token_id
+    
+    print(tokenizer)
+    pred_strs = tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
+    label_strs = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
 
     normalizer = BasicTextNormalizer()
 
-    batch_size = 4
-    total = len(pred_ids)
+    # Normalize và lọc các cặp hợp lệ
     results = []
+    for pred, label in zip(pred_strs, label_strs):
+        if label.strip() and label != "ignore_time_segment_in_scoring":
+            results.append((normalizer(label), normalizer(pred)))
 
-    for i in tqdm(range(0, total, batch_size), desc="Decoding & Computing WER"):
-        batch_pred_ids = pred_ids[i:i + batch_size]
-        batch_label_ids = label_ids[i:i + batch_size]
-
-        pred_strs = tokenizer.batch_decode(batch_pred_ids, skip_special_tokens=True)
-        label_strs = tokenizer.batch_decode(batch_label_ids, skip_special_tokens=True)
-
-        for pred, label in zip(pred_strs, label_strs):
-            if label.strip() and label != "ignore_time_segment_in_scoring":
-                results.append((normalizer(label), normalizer(pred)))
-
-    # Ghi kết quả
+    # Ghi file kết quả
     os.makedirs(result_dir, exist_ok=True)
     with open(os.path.join(result_dir, "refs_and_preds.txt"), "w", encoding="utf-8") as f:
         for ref, pred in results:
@@ -179,14 +174,14 @@ def compute_metrics_whisper_baseline(eval_preds, tokenizer, result_dir="/kaggle/
             f.write(f"Pred: {pred}\n\n")
 
     if not results:
-        print("Warning: No valid samples for WER calculation.")
+        print("⚠️ Warning: No valid samples for WER calculation.")
         return {"wer": 100.0}
 
-    references = [r for r, _ in results]
-    predictions = [p for _, p in results]
+    references = [ref for ref, _ in results]
+    predictions = [pred for _, pred in results]
     total_wer = 100 * wer(references, predictions)
 
-    print(f"Base WER: {total_wer:.2f}%")
+    print(f"✅ Final WER: {total_wer:.2f}%")
     return {"wer": total_wer}
     
     # new wer
