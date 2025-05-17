@@ -88,7 +88,7 @@ def main():
         model=whisper_medical.model,
         args=training_args,
         tokenizer=whisper_medical.processor.tokenizer,
-        prompt_ids_list=None,  # if exists
+        # prompt_ids_list=None,  # if exists
         data_collator=WhisperDataCollator(whisper_medical.processor),
         compute_metrics=True,
     )
