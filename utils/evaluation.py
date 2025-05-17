@@ -151,8 +151,8 @@ def compute_metrics_whisper_baseline(eval_preds, tokenizer, result_dir="/kaggle/
     # print(f"Length of pred ids: {len(pred_ids)}")
     label_ids = eval_preds.label_ids.copy()
     # print(f"Length of label ids: {len(label_ids)}")
-    # label_ids[label_ids == -100] = tokenizer.pad_token_id
-    # normalizer = BasicTextNormalizer()
+    label_ids[label_ids == -100] = tokenizer.pad_token_id
+    normalizer = BasicTextNormalizer()
     
     # valid_sample_count = 0
     # total_wer_sum = 0
