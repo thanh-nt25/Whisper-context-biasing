@@ -139,14 +139,18 @@ def compute_metrics_whisper_baseline(eval_preds, tokenizer, result_dir="/kaggle/
     print("\n\n Triggered compute_metrics_whisper_baseline()")
     gc.collect()
 
-    pred_ids = eval_preds.predictions
-    label_ids = eval_preds.label_ids
-    normalizer = BasicTextNormalizer()
-    tokenizer = WhisperTokenizer.from_pretrained("openai/whisper-base", language="en", task="transcribe")
+    # pred_ids = eval_preds.predictions
+    # label_ids = eval_preds.label_ids
+    # normalizer = BasicTextNormalizer()
+    # tokenizer = WhisperTokenizer.from_pretrained("openai/whisper-base", language="en", task="transcribe")
     
     # logits, labels = eval_preds
-    # pred_ids = logits.argmax(axis=-1)
-    # label_ids = labels.copy()
+    logits = eval_preds.predictions
+    labels = eval_preds.label_ids
+    
+    pred_ids = logits.argmax(axis=-1)
+    
+    label_ids = labels.copy()
     label_ids[label_ids == -100] = tokenizer.pad_token_id
 
     normalizer = BasicTextNormalizer()
