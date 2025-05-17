@@ -78,7 +78,7 @@ if __name__ == "__main__":
         generation_max_length=225,
         remove_unused_columns=False,
         gradient_accumulation_steps=8,
-        evaluation_strategy="epoch",
+        # evaluation_strategy="epoch",
         save_strategy="epoch",
         logging_strategy="epoch",
         learning_rate=1e-5,
