@@ -85,8 +85,8 @@ if __name__ == "__main__":
         num_train_epochs=10,
         weight_decay=0.01,
         warmup_steps=500,
-        save_total_limit=3,
-        load_best_model_at_end=True,
+        # save_total_limit=3,
+        # load_best_model_at_end=True,
     )
     
     trainer = Seq2SeqTrainer(
