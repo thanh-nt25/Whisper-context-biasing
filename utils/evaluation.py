@@ -131,46 +131,10 @@ def compute_metrics_whisper_baseline(eval_preds, tokenizer, result_dir="/kaggle/
     print("\n\n Triggered compute_metrics_whisper_baseline() - SAVE RAW DATA")
     
     # Tạo thư mục nếu chưa tồn tại
-    os.makedirs(result_dir, exist_ok=True)
-    
-    # Khám phá cấu trúc dữ liệu
-    print(f"Type of eval_preds: {type(eval_preds)}")
-    print(f"Available attributes: {dir(eval_preds)}")
-    
-    try:
-        # Lưu dưới dạng pickle thay vì numpy để giữ nguyên cấu trúc
-        import pickle
+    pred_ids = eval_preds.predictions
+    label_ids = eval_preds.label_ids
         
-        # Lưu từng item theo batch để tránh lỗi inhomogeneous shape
-        total_samples = len(eval_preds.predictions)
-        batch_size = 10  # Xử lý theo batch nhỏ
-        
-        for i in range(0, total_samples, batch_size):
-            end_idx = min(i + batch_size, total_samples)
-            batch_idx = f"{i:04d}-{end_idx:04d}"
-            
-            with open(os.path.join(result_dir, f"predictions_{batch_idx}.pkl"), "wb") as f:
-                pickle.dump(eval_preds.predictions[i:end_idx], f)
-            
-            with open(os.path.join(result_dir, f"labels_{batch_idx}.pkl"), "wb") as f:
-                pickle.dump(eval_preds.label_ids[i:end_idx], f)
-            
-            print(f"✅ Saved batch {i}-{end_idx} out of {total_samples}")
-            
-            # Giải phóng bộ nhớ sau mỗi batch
-            gc.collect()
-        
-        # Lưu thông tin về số lượng batch và tổng số mẫu
-        with open(os.path.join(result_dir, "batch_info.txt"), "w") as f:
-            f.write(f"Total samples: {total_samples}\n")
-            f.write(f"Batch size: {batch_size}\n")
-        
-        print(f"✅ Successfully saved all data in {result_dir}")
-    except Exception as e:
-        print(f"❌ Error saving predictions and labels: {e}")
-        import traceback
-        traceback.print_exc()
-    
+    pred_str = tokenizer.decode(pred_ids[0:1][0], skip_special_tokens=True)
     # Trả về giá trị giả để trainer không bị lỗi
     return {"wer": 0.0}    # label_strs = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
     
