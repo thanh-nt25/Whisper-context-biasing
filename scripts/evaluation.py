@@ -28,10 +28,10 @@ from transformers import (
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Đánh giá mô hình Whisper medical")
-    parser.add_argument("--model_dir", type=str, required=True, help="Thư mục chứa mô hình đã huấn luyện")
-    parser.add_argument("--test_jsonl", type=str, required=True, help="Đường dẫn đến file JSONL test data")
-    parser.add_argument("--test_audio_dir", type=str, required=True, help="Thư mục chứa audio test")
-    parser.add_argument("--bias_words_file", type=str, required=True, help="Đường dẫn đến file bias words")
+    # parser.add_argument("--model_dir", type=str, required=True, help="Thư mục chứa mô hình đã huấn luyện")
+    # parser.add_argument("--test_jsonl", type=str, required=True, help="Đường dẫn đến file JSONL test data")
+    # parser.add_argument("--test_audio_dir", type=str, required=True, help="Thư mục chứa audio test")
+    # parser.add_argument("--bias_words_file", type=str, required=True, help="Đường dẫn đến file bias words")
     parser.add_argument("--output", type=str, default=None, help="Đường dẫn đến file kết quả đánh giá")
     parser.add_argument("--compare_baseline", action="store_true", help="So sánh với Whisper cơ bản")
     parser.add_argument("--debug_mode", action="store_true", help="Chạy ở chế độ debug chi tiết")
@@ -99,7 +99,7 @@ if __name__ == "__main__":
         compute_metrics=compute_wer,
     )
 
-
+    print("Starting evaluation!")
     result = trainer.evaluate(data_test)
     print(result)
     
