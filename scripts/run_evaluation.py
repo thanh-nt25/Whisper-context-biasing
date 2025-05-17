@@ -19,7 +19,17 @@ from utils.evaluation import compute_metrics_whisper_with_prompt, compute_metric
 
 from transformers import TrainingArguments
 
+# lambda eval_preds: compute_metrics_whisper_baseline(
+#           eval_preds=eval_preds,
+#           tokenizer=whisper_medical.processor.tokenizer
+#         )
 
+def my_compute_metrics(eval_preds):
+  return compute_metrics_whisper_with_prompt(
+    eval_preds=eval_preds,
+    tokenizer=whisper_medical.processor.tokenizer,
+    # prompt_ids_list=None
+  )
 def calculate_wer(references, predictions):
     valid_pairs = [(ref, pred) for ref, pred in zip(references, predictions) 
                    if ref.strip() and pred is not None]
@@ -91,10 +101,7 @@ def main():
         tokenizer=whisper_medical.processor.tokenizer,
         # prompt_ids_list=None,  # if exists
         data_collator=WhisperDataCollator(whisper_medical.processor),
-        compute_metrics=lambda eval_preds: compute_metrics_whisper_baseline(
-          eval_preds=eval_preds,
-          tokenizer=whisper_medical.processor.tokenizer
-        )
+        compute_metrics=my_compute_metrics
     )
 
     results = trainer.evaluate(eval_dataset=test_dataset)
