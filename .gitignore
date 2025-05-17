@@ -4,3 +4,5 @@ data/medical-united-syn-med-75.zip
 data/medical-united-syn-med-75/
 exp/medical_speech_transcription_and_intent.zip
 .env
+data/medical-united-syn-med-test
+data/medical-united-syn-med-test.zip

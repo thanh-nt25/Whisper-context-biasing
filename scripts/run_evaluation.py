@@ -16,6 +16,19 @@ from data_utils.dataloader import WhisperMedicalDataset, WhisperDataCollator
 # from data_utils.data_collator import WhisperDataCollator
 from utils.evaluation import compute_metrics_whisper_with_prompt
 
+def calculate_wer(references, predictions):
+    valid_pairs = [(ref, pred) for ref, pred in zip(references, predictions) 
+                   if ref.strip() and pred is not None]
+    
+    if not valid_pairs:
+        return 1.0, [1.0] * len(references)
+    
+    refs, preds = zip(*valid_pairs)
+    
+    overall_wer = jiwer.wer(refs, preds)
+    
+    return overall_wer
+
 
 def main():
     parser = argparse.ArgumentParser(description="Đánh giá mô hình Whisper medical")
