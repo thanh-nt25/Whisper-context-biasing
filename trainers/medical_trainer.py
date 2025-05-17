@@ -44,13 +44,13 @@ class WhisperMedicalTrainer(Trainer):
         gc.collect()
         torch.cuda.empty_cache()
         
-    def compute_metrics(self, eval_preds):
-      print("Trgger compute_metrics on WhisperMedicalTrainer method!")
-      return compute_metrics_whisper_with_prompt(
-        eval_preds = eval_preds,
-        tokenizer = self.tokenizer,
-        prompt_ids_list=getattr(self, "prompt_ids_list", None)
-      )
+    # def compute_metrics(self, eval_preds):
+    #   print("Trgger compute_metrics on WhisperMedicalTrainer method!")
+    #   return compute_metrics_whisper_with_prompt(
+    #     eval_preds = eval_preds,
+    #     tokenizer = self.tokenizer,
+    #     prompt_ids_list=getattr(self, "prompt_ids_list", None)
+    #   )
     
     def compute_loss(self, model, inputs, return_outputs=False):
         """

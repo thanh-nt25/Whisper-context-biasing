@@ -15,7 +15,7 @@ from models.whisper_medical import WhisperMedical
 from data_utils.dataloader import WhisperMedicalDataset, WhisperDataCollator
 from trainers.medical_trainer import WhisperMedicalTrainer
 # from data_utils.data_collator import WhisperDataCollator
-from utils.evaluation import compute_metrics_whisper_with_prompt
+from utils.evaluation import compute_metrics_whisper_with_prompt, compute_metrics_whisper_baseline
 
 from transformers import TrainingArguments
 
@@ -91,7 +91,10 @@ def main():
         tokenizer=whisper_medical.processor.tokenizer,
         # prompt_ids_list=None,  # if exists
         data_collator=WhisperDataCollator(whisper_medical.processor),
-        # compute_metrics=True,
+        compute_metrics=lambda eval_preds: compute_metrics_whisper_baseline(
+          eval_preds=eval_preds,
+          tokenizer=whisper_medical.processor.tokenizer
+        )
     )
 
     results = trainer.evaluate(eval_dataset=test_dataset)
