@@ -180,7 +180,7 @@ def main():
     
     # Hiển thị kết quả
     print("\nEvaluation Results:")
-    print(f"WER with description: {results['with_description']['wer']:.4f}")
+    print(f"WER with description: {results["without_description"]["wer"]:.4f}")
     
     # if args.compare_baseline:
     #     print(f"WER without description: {results['without_description']['wer']:.4f}")
