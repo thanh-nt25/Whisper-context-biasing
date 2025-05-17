@@ -146,7 +146,7 @@ def main():
     # Tính WER cho without_description
     wer_without_desc, _ = calculate_wer(without_description_refs, without_description_preds)
     print(f"WER without description: {wer_without_desc:.4f}")
-    results["without_description"]["wer"] = wer_without_desc
+    # results["without_description"]["wer"] = wer_without_desc
         # results["without_description"]["successful_samples"] = successes
         # results["without_description"]["error_count"] = error_count
         
@@ -180,7 +180,7 @@ def main():
     
     # Hiển thị kết quả
     print("\nEvaluation Results:")
-    print(f"WER with description: {results["without_description"]["wer"]:.4f}")
+    print(f"WER with description: {wer_without_desc:.4f}")
     
     # if args.compare_baseline:
     #     print(f"WER without description: {results['without_description']['wer']:.4f}")
