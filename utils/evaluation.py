@@ -151,80 +151,80 @@ def compute_metrics_whisper_baseline(eval_preds, tokenizer, result_dir="/kaggle/
 
     normalizer = BasicTextNormalizer()
 
-    batch_size = 1
-    # total = len(pred_ids)
+    batch_size = 4
+    total = len(pred_ids)
     results = []
 
-    # for i in tqdm(range(0, total, batch_size), desc="Decoding & Computing WER"):
-    #     batch_pred_ids = pred_ids[i:i + batch_size]
-    #     batch_label_ids = label_ids[i:i + batch_size]
+    for i in tqdm(range(0, total, batch_size), desc="Decoding & Computing WER"):
+        batch_pred_ids = pred_ids[i:i + batch_size]
+        batch_label_ids = label_ids[i:i + batch_size]
 
-    #     pred_strs = tokenizer.batch_decode(batch_pred_ids, skip_special_tokens=True)
-    #     label_strs = tokenizer.batch_decode(batch_label_ids, skip_special_tokens=True)
-
-    #     for pred, label in zip(pred_strs, label_strs):
-    #         if label.strip() and label != "ignore_time_segment_in_scoring":
-    #             results.append((normalizer(label), normalizer(pred)))
-
-    # # Ghi kết quả
-    # os.makedirs(result_dir, exist_ok=True)
-    # with open(os.path.join(result_dir, "refs_and_preds.txt"), "w", encoding="utf-8") as f:
-    #     for ref, pred in results:
-    #         f.write(f"Ref: {ref}\n")
-    #         f.write(f"Pred: {pred}\n\n")
-
-    # if not results:
-    #     print("Warning: No valid samples for WER calculation.")
-    #     return {"wer": 100.0}
-
-    # references = [r for r, _ in results]
-    # predictions = [p for _, p in results]
-    # total_wer = 100 * wer(references, predictions)
-
-    # print(f"Base WER: {total_wer:.2f}%")
-    # return {"wer": total_wer}
-    
-    # new wer
-    print(f"Length of pred_ids: {len(pred_ids)}")
-    cutted_pred_ids = pred_ids
-    cutted_label_ids = label_ids
-    
-    for i in tqdm(range(0, len(cutted_pred_ids), batch_size)):
-        batch_pred_ids = cutted_pred_ids[i : i + batch_size]
-        batch_label_ids = cutted_label_ids[i : i + batch_size]
-
-        pre_strs = tokenizer.batch_decode(batch_pred_ids, skip_special_tokens=True)
+        pred_strs = tokenizer.batch_decode(batch_pred_ids, skip_special_tokens=True)
         label_strs = tokenizer.batch_decode(batch_label_ids, skip_special_tokens=True)
 
-        filtered_pre_strs = []
-        filtered_label_strs = []
+        for pred, label in zip(pred_strs, label_strs):
+            if label.strip() and label != "ignore_time_segment_in_scoring":
+                results.append((normalizer(label), normalizer(pred)))
 
-        for pred, label in zip(pre_strs, label_strs):
-            if label != "ignore_time_segment_in_scoring" and label.strip() != "":
-                # Skip empty references and 'ignore_time_segment_in_scoring'
-                filtered_pre_strs.append(normalizer(pred))
-                filtered_label_strs.append(normalizer(label))
-
-        # Only add valid pairs to results
-        if filtered_pre_strs and filtered_label_strs:
-            results.extend(zip(filtered_label_strs, filtered_pre_strs))
-
-    with open(
-        os.path.join("/kaggle/working", "refs_and_pred.txt"), "w", encoding="utf-8"
-    ) as f:
+    # Ghi kết quả
+    os.makedirs(result_dir, exist_ok=True)
+    with open(os.path.join(result_dir, "refs_and_preds.txt"), "w", encoding="utf-8") as f:
         for ref, pred in results:
-            f.write(f"Ref:{ref}\n")
-            f.write(f"Pred:{pred}\n\n")
+            f.write(f"Ref: {ref}\n")
+            f.write(f"Pred: {pred}\n\n")
 
     if not results:
-        print("Warning: No valid samples for WER calculation")
-        return {"wer": 100.0}  # Worst possible WER
+        print("Warning: No valid samples for WER calculation.")
+        return {"wer": 100.0}
 
-    pre_strs = [pred for _, pred in results]
-    label_strs = [ref for ref, _ in results]
-    total_wer = 100 * metric.compute(predictions=pre_strs, references=label_strs)
+    references = [r for r, _ in results]
+    predictions = [p for _, p in results]
+    total_wer = 100 * wer(references, predictions)
 
+    print(f"Base WER: {total_wer:.2f}%")
     return {"wer": total_wer}
+    
+    # new wer
+    # print(f"Length of pred_ids: {len(pred_ids)}")
+    # cutted_pred_ids = pred_ids
+    # cutted_label_ids = label_ids
+    
+    # for i in tqdm(range(0, len(cutted_pred_ids), batch_size)):
+    #     batch_pred_ids = cutted_pred_ids[i : i + batch_size]
+    #     batch_label_ids = cutted_label_ids[i : i + batch_size]
+
+    #     pre_strs = tokenizer.batch_decode(batch_pred_ids, skip_special_tokens=True)
+    #     label_strs = tokenizer.batch_decode(batch_label_ids, skip_special_tokens=True)
+
+    #     filtered_pre_strs = []
+    #     filtered_label_strs = []
+
+    #     for pred, label in zip(pre_strs, label_strs):
+    #         if label != "ignore_time_segment_in_scoring" and label.strip() != "":
+    #             # Skip empty references and 'ignore_time_segment_in_scoring'
+    #             filtered_pre_strs.append(normalizer(pred))
+    #             filtered_label_strs.append(normalizer(label))
+
+    #     # Only add valid pairs to results
+    #     if filtered_pre_strs and filtered_label_strs:
+    #         results.extend(zip(filtered_label_strs, filtered_pre_strs))
+
+    # with open(
+    #     os.path.join("/kaggle/working", "refs_and_pred.txt"), "w", encoding="utf-8"
+    # ) as f:
+    #     for ref, pred in results:
+    #         f.write(f"Ref:{ref}\n")
+    #         f.write(f"Pred:{pred}\n\n")
+
+    # if not results:
+    #     print("Warning: No valid samples for WER calculation")
+    #     return {"wer": 100.0}  # Worst possible WER
+
+    # pre_strs = [pred for _, pred in results]
+    # label_strs = [ref for ref, _ in results]
+    # total_wer = 100 * metric.compute(predictions=pre_strs, references=label_strs)
+
+    # return {"wer": total_wer}
 
 
 # def evaluate_model(model, jsonl_file, audio_dir, bias_words_file, num_samples=None):
