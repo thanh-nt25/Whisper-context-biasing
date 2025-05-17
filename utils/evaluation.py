@@ -157,7 +157,16 @@ def compute_metrics_whisper_baseline(eval_preds, tokenizer, result_dir="/kaggle/
     # valid_sample_count = 0
     # total_wer_sum = 0
     # batch_size = 1  # Xử lý từng mẫu một
-    temp = tokenizer.decode(pred_ids[0:1][0], skip_special_tokens=True)
+    # temp = tokenizer.decode(pred_ids[0:1][0], skip_special_tokens=True)
+    os.makedirs(result_dir, exist_ok=True)
+    
+    # Lưu dự đoán và nhãn dưới dạng numpy để xử lý sau
+    try:
+        np.save(os.path.join(result_dir, "predictions.npy"), eval_preds.predictions)
+        np.save(os.path.join(result_dir, "labels.npy"), eval_preds.label_ids)
+        print("✅ Saved predictions and labels for later processing")
+    except Exception as e:
+        print(f"❌ Error saving predictions and labels: {e}")
     # label_strs = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
     
     # try:
