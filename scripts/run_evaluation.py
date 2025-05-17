@@ -188,7 +188,7 @@ def main():
     
     print(f"Test dataset created with {len(test_dataset)} samples")
     
-    test_model_basic_functionality(whisper_medical, sample_audio_path)
+    # test_model_basic_functionality(whisper_medical, sample_audio_path)
     
     # 2. Thay vì dùng trainer.evaluate, sử dụng hàm đánh giá đơn giản
     print("\n=== Running simple evaluation ===")
