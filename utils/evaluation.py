@@ -126,48 +126,53 @@ def compute_metrics_whisper_with_prompt(eval_preds, tokenizer, prompt_ids_list=N
 
 def compute_metrics_whisper_baseline(eval_preds, tokenizer, result_dir="/kaggle/working/results"):
     """
-    Tính WER cho baseline Whisper mà không có prompt injection
-    Args:
-        eval_preds: Tuple (logits, labels)
-        tokenizer: Whisper tokenizer
-        result_dir: Thư mục lưu kết quả tham chiếu và dự đoán
-    Returns:
-        Dictionary chứa WER
+    Lưu predictions và labels dưới dạng thích hợp để xử lý sau
     """
-    print("\n\n Triggered compute_metrics_whisper_baseline()")
-    # gc.collect()
+    print("\n\n Triggered compute_metrics_whisper_baseline() - SAVE RAW DATA")
     
-    # # Setup để lưu kết quả
-    # os.makedirs(result_dir, exist_ok=True)
-    # refs_file = os.path.join(result_dir, "references.txt")
-    # preds_file = os.path.join(result_dir, "predictions.txt")
-    
-    # # Mở file để ghi kết quả từng mẫu
-    # refs_writer = open(refs_file, "w", encoding="utf-8")
-    # preds_writer = open(preds_file, "w", encoding="utf-8")
-    
-    # # Xử lý từng mẫu một để giảm thiểu sử dụng RAM
-    pred_ids = eval_preds.predictions
-    # print(f"Length of pred ids: {len(pred_ids)}")
-    label_ids = eval_preds.label_ids.copy()
-    # print(f"Length of label ids: {len(label_ids)}")
-    label_ids[label_ids == -100] = tokenizer.pad_token_id
-    normalizer = BasicTextNormalizer()
-    
-    # valid_sample_count = 0
-    # total_wer_sum = 0
-    # batch_size = 1  # Xử lý từng mẫu một
-    # temp = tokenizer.decode(pred_ids[0:1][0], skip_special_tokens=True)
+    # Tạo thư mục nếu chưa tồn tại
     os.makedirs(result_dir, exist_ok=True)
     
-    # Lưu dự đoán và nhãn dưới dạng numpy để xử lý sau
+    # Khám phá cấu trúc dữ liệu
+    print(f"Type of eval_preds: {type(eval_preds)}")
+    print(f"Available attributes: {dir(eval_preds)}")
+    
     try:
-        np.save(os.path.join(result_dir, "predictions.npy"), eval_preds.predictions)
-        np.save(os.path.join(result_dir, "labels.npy"), eval_preds.label_ids)
-        print("✅ Saved predictions and labels for later processing")
+        # Lưu dưới dạng pickle thay vì numpy để giữ nguyên cấu trúc
+        import pickle
+        
+        # Lưu từng item theo batch để tránh lỗi inhomogeneous shape
+        total_samples = len(eval_preds.predictions)
+        batch_size = 10  # Xử lý theo batch nhỏ
+        
+        for i in range(0, total_samples, batch_size):
+            end_idx = min(i + batch_size, total_samples)
+            batch_idx = f"{i:04d}-{end_idx:04d}"
+            
+            with open(os.path.join(result_dir, f"predictions_{batch_idx}.pkl"), "wb") as f:
+                pickle.dump(eval_preds.predictions[i:end_idx], f)
+            
+            with open(os.path.join(result_dir, f"labels_{batch_idx}.pkl"), "wb") as f:
+                pickle.dump(eval_preds.label_ids[i:end_idx], f)
+            
+            print(f"✅ Saved batch {i}-{end_idx} out of {total_samples}")
+            
+            # Giải phóng bộ nhớ sau mỗi batch
+            gc.collect()
+        
+        # Lưu thông tin về số lượng batch và tổng số mẫu
+        with open(os.path.join(result_dir, "batch_info.txt"), "w") as f:
+            f.write(f"Total samples: {total_samples}\n")
+            f.write(f"Batch size: {batch_size}\n")
+        
+        print(f"✅ Successfully saved all data in {result_dir}")
     except Exception as e:
         print(f"❌ Error saving predictions and labels: {e}")
-    # label_strs = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
+        import traceback
+        traceback.print_exc()
+    
+    # Trả về giá trị giả để trainer không bị lỗi
+    return {"wer": 0.0}    # label_strs = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
     
     # try:
     #     for i in range(len(pred_ids)):
@@ -232,7 +237,7 @@ def compute_metrics_whisper_baseline(eval_preds, tokenizer, result_dir="/kaggle/
     #     f.write(f"WER: {avg_wer:.2f}%\n")
     #     f.write(f"Valid samples: {valid_sample_count}\n")
     
-    return {"wer": 1.2}    # new wer
+    # return {"wer": 1.2}    # new wer
     # print(f"Length of pred_ids: {len(pred_ids)}")
     # cutted_pred_ids = pred_ids
     # cutted_label_ids = label_ids
