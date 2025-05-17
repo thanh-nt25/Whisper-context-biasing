@@ -78,7 +78,8 @@ def main():
     
     training_args = TrainingArguments(
         output_dir="/kaggle/working",
-        per_device_eval_batch_size=2,
+        per_device_eval_batch_size=1,
+        eval_accumulation_steps=2,
         remove_unused_columns=False,
         do_eval=True,
         report_to="none",  # Không cần push log
