@@ -127,6 +127,9 @@ class WhisperDataCollator:
         input_features = [feature["input_features"] for feature in features]
         input_features = torch.nn.utils.rnn.pad_sequence(input_features, batch_first=True)
         
+        if input_features.dim() == 4 and input_features.shape[1] == 1:
+          input_features = input_features.squeeze(1)
+        
         # Pad decoder_input_ids (prompt)
         decoder_input_ids = [feature["decoder_input_ids"] for feature in features]
         decoder_input_ids = torch.nn.utils.rnn.pad_sequence(
