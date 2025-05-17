@@ -149,7 +149,7 @@ def compute_metrics_whisper_baseline(eval_preds, tokenizer, result_dir="/kaggle/
     logits = eval_preds.predictions
     labels = eval_preds.label_ids
     
-    pred_ids = logits.argmax(axis=-1)
+    # pred_ids = logits.argmax(axis=-1)
     
     label_ids = labels.copy()
     label_ids[label_ids == -100] = tokenizer.pad_token_id
