@@ -127,66 +127,70 @@ def compute_metrics_whisper_with_prompt(eval_preds, tokenizer, prompt_ids_list=N
 def compute_metrics_whisper_baseline(eval_preds, tokenizer, result_dir="/kaggle/working/results"):
     """
     Tính WER cho baseline Whisper mà không có prompt injection
-
     Args:
         eval_preds: Tuple (logits, labels)
         tokenizer: Whisper tokenizer
         result_dir: Thư mục lưu kết quả tham chiếu và dự đoán
-
     Returns:
         Dictionary chứa WER
     """
     print("\n\n Triggered compute_metrics_whisper_baseline()")
     gc.collect()
-
-    # pred_ids = eval_preds.predictions
-    # label_ids = eval_preds.label_ids
-    # normalizer = BasicTextNormalizer()
-    # tokenizer = WhisperTokenizer.from_pretrained("openai/whisper-base", language="en", task="transcribe")
     
-    # logits, labels = eval_preds
-    print(type(eval_preds))
     pred_ids = eval_preds.predictions
     labels = eval_preds.label_ids
-    
-    # pred_ids = logits.argmax(axis=-1)
-    
     label_ids = labels.copy()
     label_ids[label_ids == -100] = tokenizer.pad_token_id
     
-    # print(tokenizer)
-    pred_strs = tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
-    label_strs = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
-    print(f"bug here")
     normalizer = BasicTextNormalizer()
-
-    # Normalize và lọc các cặp hợp lệ
     results = []
-    for pred, label in zip(pred_strs, label_strs):
-        # label_norm = normalizer(label)
-        # pred_norm = normalizer(pred)
-        # print(f"Label: {label_norm}, Pred: {pred_norm}")
-        if label.strip() and label != "ignore_time_segment_in_scoring":
-            results.append((normalizer(label), normalizer(pred)))
-
-    # Ghi file kết quả
+    
+    # Xử lý từng phần nhỏ để tránh tràn RAM
+    batch_size = 4  # Điều chỉnh kích thước phù hợp với RAM của bạn
+    num_samples = len(pred_ids)
+    
     os.makedirs(result_dir, exist_ok=True)
     with open(os.path.join(result_dir, "refs_and_preds.txt"), "w", encoding="utf-8") as f:
-        for ref, pred in results:
-            f.write(f"Ref: {ref}\n")
-            f.write(f"Pred: {pred}\n\n")
-
+        for i in range(0, num_samples, batch_size):
+            end_idx = min(i + batch_size, num_samples)
+            
+            # Xử lý từng batch nhỏ
+            batch_pred_ids = pred_ids[i:end_idx]
+            batch_label_ids = label_ids[i:end_idx]
+            
+            # Decode từng batch
+            batch_pred_strs = tokenizer.batch_decode(batch_pred_ids, skip_special_tokens=True)
+            batch_label_strs = tokenizer.batch_decode(batch_label_ids, skip_special_tokens=True)
+            
+            # Xử lý từng cặp trong batch
+            for pred, label in zip(batch_pred_strs, batch_label_strs):
+                if label.strip() and label != "ignore_time_segment_in_scoring":
+                    norm_label = normalizer(label)
+                    norm_pred = normalizer(pred)
+                    results.append((norm_label, norm_pred))
+                    
+                    # Ghi ngay lập tức để giảm bộ nhớ
+                    f.write(f"Ref: {norm_label}\n")
+                    f.write(f"Pred: {norm_pred}\n\n")
+            
+            # Giải phóng bộ nhớ sau mỗi batch
+            del batch_pred_ids, batch_label_ids, batch_pred_strs, batch_label_strs
+            gc.collect()
+    
     if not results:
         print("⚠️ Warning: No valid samples for WER calculation.")
         return {"wer": 100.0}
-
+    
     references = [ref for ref, _ in results]
     predictions = [pred for _, pred in results]
     total_wer = 100 * wer(references, predictions)
-
     print(f"✅ Final WER: {total_wer:.2f}%")
-    return {"wer": total_wer}
     
+    # Giải phóng bộ nhớ trước khi trả về kết quả
+    del pred_ids, label_ids, results
+    gc.collect()
+    
+    return {"wer": total_wer}    
     # new wer
     # print(f"Length of pred_ids: {len(pred_ids)}")
     # cutted_pred_ids = pred_ids
