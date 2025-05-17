@@ -145,6 +145,7 @@ def compute_metrics_whisper_baseline(eval_preds, tokenizer, result_dir="/kaggle/
     # tokenizer = WhisperTokenizer.from_pretrained("openai/whisper-base", language="en", task="transcribe")
     
     # logits, labels = eval_preds
+    print(type(eval_preds))
     logits = eval_preds.predictions
     labels = eval_preds.label_ids
     
