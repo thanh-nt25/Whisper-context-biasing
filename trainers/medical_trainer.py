@@ -156,3 +156,174 @@ class WhisperMedicalTrainer(Trainer):
             return result
         finally:
             self._free_memory()
+            
+class DebugWhisperMedicalTrainer(WhisperMedicalTrainer):
+    """
+    Phiên bản WhisperMedicalTrainer với debug chi tiết
+    """
+    
+    def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval"):
+        """
+        Ghi đè phương thức evaluate để debug
+        """
+        print("\n=== DEBUG: evaluate method called ===")
+        
+        # Khởi tạo dataset
+        eval_dataset = eval_dataset if eval_dataset is not None else self.eval_dataset
+        print(f"Eval dataset size: {len(eval_dataset)}")
+        
+        # Gọi phương thức gốc với try/except để bắt lỗi
+        try:
+            result = super().evaluate(eval_dataset, ignore_keys, metric_key_prefix)
+            print(f"Evaluate succeeded with result: {result}")
+            return result
+        except Exception as e:
+            print(f"Error in evaluate: {e}")
+            import traceback
+            traceback.print_exc()
+            return {f"{metric_key_prefix}_error": str(e)}
+    
+    def get_eval_dataloader(self, eval_dataset=None):
+        """
+        Ghi đè get_eval_dataloader để debug quá trình tạo dataloader
+        """
+        print("\n=== DEBUG: get_eval_dataloader called ===")
+        eval_dataset = eval_dataset if eval_dataset is not None else self.eval_dataset
+        print(f"Creating dataloader for {len(eval_dataset)} samples")
+        
+        try:
+            dataloader = super().get_eval_dataloader(eval_dataset)
+            print(f"Created dataloader with {len(dataloader)} batches")
+            return dataloader
+        except Exception as e:
+            print(f"Error in get_eval_dataloader: {e}")
+            import traceback
+            traceback.print_exc()
+            raise e
+    
+    def evaluation_loop(self, dataloader, description, prediction_loss_only=None, ignore_keys=None, metric_key_prefix="eval"):
+        """
+        Ghi đè evaluation_loop để debug quá trình đánh giá
+        """
+        print("\n=== DEBUG: evaluation_loop called ===")
+        print(f"Dataloader size: {len(dataloader)}")
+        
+        # Đặt model ở chế độ đánh giá
+        self.model.eval()
+        
+        # Khởi tạo các biến
+        all_preds = []
+        all_labels = []
+        processed_batches = 0
+        
+        print("Starting evaluation loop...")
+        for step, inputs in enumerate(dataloader):
+            # In thông tin cho các batch đầu tiên
+            if step < 3 or step % 20 == 0:
+                print(f"Processing batch {step}/{len(dataloader)}")
+                print(f"  Batch keys: {inputs.keys()}")
+                for key, value in inputs.items():
+                    if isinstance(value, torch.Tensor):
+                        print(f"  {key} shape: {value.shape}")
+            
+            # Chuyển inputs lên device
+            inputs = self._prepare_inputs(inputs)
+            
+            # Dự đoán cho batch hiện tại
+            try:
+                loss, logits, labels = self.prediction_step(
+                    self.model, inputs, prediction_loss_only, ignore_keys=ignore_keys
+                )
+                
+                if step < 3 or step % 20 == 0:
+                    print(f"  Prediction step successful:")
+                    print(f"    Loss: {loss}")
+                    print(f"    Logits shape: {logits.shape if logits is not None else None}")
+                    print(f"    Labels shape: {labels.shape if labels is not None else None}")
+                
+                # Lưu trữ dự đoán và nhãn
+                if logits is not None:
+                    all_preds.append(logits.detach().cpu().numpy())
+                if labels is not None:
+                    all_labels.append(labels.detach().cpu().numpy())
+                
+                processed_batches += 1
+            except Exception as e:
+                print(f"Error in prediction_step for batch {step}: {e}")
+                import traceback
+                traceback.print_exc()
+                continue
+            
+            # Giải phóng bộ nhớ
+            del inputs, loss, logits, labels
+            gc.collect()
+            if processed_batches % 20 == 0:
+                torch.cuda.empty_cache()
+        
+        print(f"Evaluation loop completed. Processed {processed_batches}/{len(dataloader)} batches")
+        
+        # Kiểm tra kết quả
+        if not all_preds or not all_labels:
+            print("WARNING: No predictions or labels collected!")
+            return {f"{metric_key_prefix}_wer": 0.0}
+        
+        try:
+            # Ghép các dự đoán và nhãn
+            import numpy as np
+            all_preds = np.concatenate(all_preds, axis=0)
+            all_labels = np.concatenate(all_labels, axis=0)
+            
+            print(f"Concatenated predictions shape: {all_preds.shape}")
+            print(f"Concatenated labels shape: {all_labels.shape}")
+            
+            # Tạo EvalPrediction
+            eval_preds = EvalPrediction(predictions=all_preds, label_ids=all_labels)
+            
+            # Gọi compute_metrics
+            metrics = self.compute_metrics(eval_preds)
+            print(f"Metrics computed: {metrics}")
+            
+            return metrics
+        except Exception as e:
+            print(f"Error in processing evaluation results: {e}")
+            import traceback
+            traceback.print_exc()
+            return {f"{metric_key_prefix}_error": str(e)}
+    
+    def prediction_step(self, model, inputs, prediction_loss_only, ignore_keys=None):
+        """
+        Ghi đè prediction_step để debug quá trình dự đoán
+        """
+        # Không in log cho mọi bước dự đoán (sẽ quá nhiều thông tin)
+        # Chỉ in cho bước đầu tiên
+        if not hasattr(self, "_prediction_step_count"):
+            self._prediction_step_count = 0
+            print("\n=== DEBUG: First prediction_step called ===")
+            print(f"Inputs keys: {inputs.keys()}")
+            for key, value in inputs.items():
+                if isinstance(value, torch.Tensor):
+                    print(f"  {key} shape: {value.shape}")
+        
+        self._prediction_step_count += 1
+        
+        # Gọi phương thức gốc
+        try:
+            outputs = super().prediction_step(model, inputs, prediction_loss_only, ignore_keys)
+            
+            # In thông tin cho bước đầu tiên
+            if self._prediction_step_count <= 1:
+                if isinstance(outputs, tuple) and len(outputs) == 3:
+                    loss, logits, labels = outputs
+                    print(f"First prediction step successful:")
+                    print(f"  Loss: {loss}")
+                    print(f"  Logits shape: {logits.shape if logits is not None else None}")
+                    print(f"  Labels shape: {labels.shape if labels is not None else None}")
+                else:
+                    print(f"Unexpected output format: {outputs}")
+            
+            return outputs
+        except Exception as e:
+            print(f"Error in prediction_step (step {self._prediction_step_count}): {e}")
+            import traceback
+            traceback.print_exc()
+            raise e

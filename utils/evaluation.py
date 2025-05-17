@@ -124,217 +124,109 @@ def compute_metrics_whisper_with_prompt(eval_preds, tokenizer, prompt_ids_list=N
     }
 
 
-def compute_metrics_whisper_baseline(eval_preds, tokenizer, result_dir="/kaggle/working/results"):
+def compute_metrics_whisper_baseline_debug(eval_preds, tokenizer, result_dir="/kaggle/working/results"):
     """
-    Lưu predictions và labels dưới dạng thích hợp để xử lý sau
+    Phiên bản debug của compute_metrics
     """
-    print("\n\n Triggered compute_metrics_whisper_baseline() - SAVE RAW DATA")
+    print("\n=== DEBUG: compute_metrics_whisper_baseline called ===")
     
-    # Tạo thư mục nếu chưa tồn tại
-    pred_ids = eval_preds.predictions
-    label_ids = eval_preds.label_ids
+    try:
+        print(f"Type of eval_preds: {type(eval_preds)}")
+        print(f"Available attributes: {dir(eval_preds)}")
         
-    pred_str = tokenizer.decode(pred_ids[0:1][0], skip_special_tokens=True)
-    # Trả về giá trị giả để trainer không bị lỗi
-    return {"wer": 0.0}    # label_strs = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
-    
-    # try:
-    #     for i in range(len(pred_ids)):
-    #         # Giải phóng bộ nhớ trước mỗi lần xử lý
-    #         gc.collect()
+        # Kiểm tra predictions và labels
+        print(f"Predictions type: {type(eval_preds.predictions)}")
+        print(f"Predictions shape/length: {eval_preds.predictions.shape if hasattr(eval_preds.predictions, 'shape') else len(eval_preds.predictions)}")
+        
+        print(f"Labels type: {type(eval_preds.label_ids)}")
+        print(f"Labels shape/length: {eval_preds.label_ids.shape if hasattr(eval_preds.label_ids, 'shape') else len(eval_preds.label_ids)}")
+        
+        # Kiểm tra một vài mẫu đầu tiên
+        if len(eval_preds.predictions) > 0:
+            print("\nSample predictions (first 2):")
+            for i in range(min(2, len(eval_preds.predictions))):
+                print(f"  Prediction {i} type: {type(eval_preds.predictions[i])}")
+                print(f"  Shape/length: {eval_preds.predictions[i].shape if hasattr(eval_preds.predictions[i], 'shape') else len(eval_preds.predictions[i])}")
+        
+        if len(eval_preds.label_ids) > 0:
+            print("\nSample labels (first 2):")
+            for i in range(min(2, len(eval_preds.label_ids))):
+                print(f"  Label {i} type: {type(eval_preds.label_ids[i])}")
+                print(f"  Shape/length: {eval_preds.label_ids[i].shape if hasattr(eval_preds.label_ids[i], 'shape') else len(eval_preds.label_ids[i])}")
+        
+        # Tiếp tục với hàm gốc
+        result = {
+            "wer": 0.0  # Giá trị mặc định để tránh lỗi
+        }
+        
+        print("Will process predictions and compute WER...")
+        
+        # Thư mục kết quả
+        os.makedirs(result_dir, exist_ok=True)
+        
+        # Chuẩn bị file đầu ra
+        refs_file = os.path.join(result_dir, "refs_debug.txt")
+        preds_file = os.path.join(result_dir, "preds_debug.txt")
+        
+        with open(refs_file, "w", encoding="utf-8") as ref_f, \
+             open(preds_file, "w", encoding="utf-8") as pred_f:
             
-    #         # Chỉ xử lý 1 mẫu tại một thời điểm
-    #         single_pred = pred_ids[i:i+1]
-    #         single_label = label_ids[i:i+1]
+            normalizer = BasicTextNormalizer()
+            valid_samples = 0
+            wer_sum = 0
             
-    #         # Decode từng mẫu và giải phóng ngay lập tức
-    #         try:
-    #             pred_str = tokenizer.decode(single_pred[0], skip_special_tokens=True)
-    #             label_str = tokenizer.decode(single_label[0], skip_special_tokens=True)
+            # Xử lý từng mẫu
+            for i in range(len(eval_preds.predictions)):
+                if i < 5 or i % 50 == 0:
+                    print(f"Processing sample {i+1}/{len(eval_preds.predictions)}")
                 
-    #             if label_str.strip() and label_str != "ignore_time_segment_in_scoring":
-    #                 # Chuẩn hóa văn bản
-    #                 norm_pred = normalizer(pred_str)
-    #                 norm_label = normalizer(label_str)
+                try:
+                    # Xử lý nhãn
+                    curr_label = eval_preds.label_ids[i].copy()
+                    curr_label[curr_label == -100] = tokenizer.pad_token_id
                     
-    #                 # Tính WER cho mẫu hiện tại
-    #                 sample_wer = wer([norm_label], [norm_pred])
-    #                 total_wer_sum += sample_wer
-    #                 valid_sample_count += 1
+                    # Decode
+                    pred_str = tokenizer.decode(eval_preds.predictions[i], skip_special_tokens=True)
+                    label_str = tokenizer.decode(curr_label, skip_special_tokens=True)
                     
-    #                 # Ghi ra file và xả bộ nhớ đệm
-    #                 refs_writer.write(f"{norm_label}\n")
-    #                 preds_writer.write(f"{norm_pred}\n")
-    #                 refs_writer.flush()
-    #                 preds_writer.flush()
-                    
-    #                 # Log tiến độ
-    #                 if valid_sample_count % 10 == 0:
-    #                     print(f"Processed {valid_sample_count} valid samples.")
-                
-    #             # Xóa biến tạm thời
-    #             del pred_str, label_str
-    #             gc.collect()
-                
-    #         except Exception as e:
-    #             print(f"Error processing sample {i}: {e}")
-    #             continue
-                
-    #         # Xóa biến tạm thời
-    #         del single_pred, single_label
-            
-    # finally:
-    #     # Đảm bảo đóng file
-    #     refs_writer.close()
-    #     preds_writer.close()
-    
-    # # Tính WER tổng thể
-    # if valid_sample_count == 0:
-    #     print("⚠️ Warning: No valid samples for WER calculation.")
-    #     return {"wer": 100.0}
-    
-    # avg_wer = (total_wer_sum / valid_sample_count) * 100
-    # print(f"✅ Final WER: {avg_wer:.2f}% (based on {valid_sample_count} samples)")
-    
-    # # Tạo file tổng hợp nếu cần
-    # with open(os.path.join(result_dir, "summary.txt"), "w", encoding="utf-8") as f:
-    #     f.write(f"WER: {avg_wer:.2f}%\n")
-    #     f.write(f"Valid samples: {valid_sample_count}\n")
-    
-    # return {"wer": 1.2}    # new wer
-    # print(f"Length of pred_ids: {len(pred_ids)}")
-    # cutted_pred_ids = pred_ids
-    # cutted_label_ids = label_ids
-    
-    # for i in tqdm(range(0, len(cutted_pred_ids), batch_size)):
-    #     batch_pred_ids = cutted_pred_ids[i : i + batch_size]
-    #     batch_label_ids = cutted_label_ids[i : i + batch_size]
-
-    #     pre_strs = tokenizer.batch_decode(batch_pred_ids, skip_special_tokens=True)
-    #     label_strs = tokenizer.batch_decode(batch_label_ids, skip_special_tokens=True)
-
-    #     filtered_pre_strs = []
-    #     filtered_label_strs = []
-
-    #     for pred, label in zip(pre_strs, label_strs):
-    #         if label != "ignore_time_segment_in_scoring" and label.strip() != "":
-    #             # Skip empty references and 'ignore_time_segment_in_scoring'
-    #             filtered_pre_strs.append(normalizer(pred))
-    #             filtered_label_strs.append(normalizer(label))
-
-    #     # Only add valid pairs to results
-    #     if filtered_pre_strs and filtered_label_strs:
-    #         results.extend(zip(filtered_label_strs, filtered_pre_strs))
-
-    # with open(
-    #     os.path.join("/kaggle/working", "refs_and_pred.txt"), "w", encoding="utf-8"
-    # ) as f:
-    #     for ref, pred in results:
-    #         f.write(f"Ref:{ref}\n")
-    #         f.write(f"Pred:{pred}\n\n")
-
-    # if not results:
-    #     print("Warning: No valid samples for WER calculation")
-    #     return {"wer": 100.0}  # Worst possible WER
-
-    # pre_strs = [pred for _, pred in results]
-    # label_strs = [ref for ref, _ in results]
-    # total_wer = 100 * metric.compute(predictions=pre_strs, references=label_strs)
-
-    # return {"wer": total_wer}
-
-
-# def evaluate_model(model, jsonl_file, audio_dir, bias_words_file, num_samples=None):
-#     """
-#     Đánh giá mô hình trên tập dữ liệu
-    
-#     Args:
-#         model: WhisperMedical model
-#         jsonl_file: Đường dẫn đến file JSONL chứa data
-#         audio_dir: Thư mục chứa audio
-#         bias_words_file: Đường dẫn đến file bias words
-#         num_samples: Số lượng mẫu cần đánh giá (None = tất cả)
-    
-#     Returns:
-#         Dictionary chứa kết quả đánh giá
-#     """
-#     from data_utils.data_processor import load_jsonl
-    
-#     # Đọc dữ liệu
-#     data = load_jsonl(jsonl_file)
-#     if num_samples:
-#         data = data[:num_samples]
-    
-#     # Đọc bias words
-#     bias_words_string = load_bias_words(bias_words_file)
-    
-#     references = []
-#     predictions = []
-#     predictions_with_description = []
-    
-#     for item in tqdm(data, desc="Evaluating"):
-#         file_name = item['file']
-#         transcript = item['text']
-#         description = item['description']
+                    # Kiểm tra tính hợp lệ
+                    if label_str.strip() and label_str != "ignore_time_segment_in_scoring":
+                        # Chuẩn hóa
+                        norm_pred = normalizer(pred_str)
+                        norm_label = normalizer(label_str)
+                        
+                        # Tính WER
+                        sample_wer = wer([norm_label], [norm_pred])
+                        wer_sum += sample_wer
+                        valid_samples += 1
+                        
+                        # Ghi ra file
+                        ref_f.write(f"{norm_label}\n")
+                        pred_f.write(f"{norm_pred}\n")
+                        
+                        # Log vài mẫu đầu tiên
+                        if i < 5:
+                            print(f"  Sample {i}:")
+                            print(f"    Reference: {norm_label}")
+                            print(f"    Prediction: {norm_pred}")
+                            print(f"    WER: {sample_wer * 100:.2f}%")
+                except Exception as e:
+                    print(f"Error processing sample {i}: {e}")
+                    continue
         
-#         # Lấy đường dẫn audio
-#         audio_path = get_audio_path(file_name, audio_dir)
+        # Tính WER trung bình
+        if valid_samples > 0:
+            result["wer"] = (wer_sum / valid_samples) * 100
+            print(f"Computed WER: {result['wer']:.2f}% (based on {valid_samples} samples)")
+        else:
+            result["wer"] = 100.0
+            print("No valid samples for WER calculation")
         
-#         # Thêm transcript vào danh sách tham chiếu
-#         references.append(transcript)
+        return result
         
-#         # Nhận dạng không có description
-#         try:
-#             pred_no_desc = model.transcribe(audio_path)
-#             predictions.append(pred_no_desc)
-#         except Exception as e:
-#             print(f"Error in transcribing without description: {e}")
-#             predictions.append("ERROR: Could not transcribe")
-        
-#         # Nhận dạng có description và bias words
-#         try:
-#             pred_with_desc = model.transcribe(audio_path, description, bias_words_string)
-#             predictions_with_description.append(pred_with_desc)
-#         except Exception as e:
-#             print(f"Error in transcribing with description: {e}")
-#             predictions_with_description.append("ERROR: Could not transcribe")
-    
-#     # Tính WER
-#     wer_no_desc, individual_wers_no_desc = calculate_wer(references, predictions)
-#     wer_with_desc, individual_wers_with_desc = calculate_wer(references, predictions_with_description)
-    
-#     # Tính độ chính xác nhận dạng thuật ngữ y tế
-#     med_metrics_no_desc = calculate_medical_term_accuracy(references, predictions, bias_words_file)
-#     med_metrics_with_desc = calculate_medical_term_accuracy(references, predictions_with_description, bias_words_file)
-    
-#     # Tạo báo cáo đánh giá chi tiết
-#     detailed_results = []
-#     for i, (ref, pred_no, pred_with) in enumerate(zip(references, predictions, predictions_with_description)):
-#         wer_no = individual_wers_no_desc[i]
-#         wer_with = individual_wers_with_desc[i]
-        
-#         detailed_results.append({
-#             "reference": ref,
-#             "prediction_no_desc": pred_no,
-#             "prediction_with_desc": pred_with,
-#             "wer_no_desc": wer_no,
-#             "wer_with_desc": wer_with,
-#             "wer_improvement": wer_no - wer_with,
-#             "file_name": data[i]['file']
-#         })
-    
-#     # Tạo báo cáo đánh giá tổng thể
-#     evaluation_results = {
-#         "wer": {
-#             "no_description": wer_no_desc,
-#             "with_description": wer_with_desc,
-#             "improvement": wer_no_desc - wer_with_desc,
-#             "improvement_percentage": (wer_no_desc - wer_with_desc) / wer_no_desc * 100 if wer_no_desc > 0 else 0
-#         },
-#         "medical_terms_no_desc": med_metrics_no_desc,
-#         "medical_terms_with_desc": med_metrics_with_desc,
-#         "detailed_results": detailed_results
-#     }
-    
-#     return evaluation_results
+    except Exception as e:
+        print(f"Error in compute_metrics: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"wer": 100.0}
   

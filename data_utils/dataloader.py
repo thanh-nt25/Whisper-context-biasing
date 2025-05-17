@@ -166,6 +166,61 @@ class WhisperDataCollator:
         }
         
         return batch
+      
+@dataclass
+class ConsistentWhisperDataCollator:
+    """
+    Collator nhất quán cho Whisper
+    """
+    processor: any
+    include_decoder_input_ids: bool = False  # Flag để kiểm soát
+    
+    def __call__(self, features: List[Dict[str, Union[torch.Tensor, List[int]]]]) -> Dict[str, torch.Tensor]:
+        print(f"DataCollator called with {len(features)} features")
+        if len(features) > 0:
+            print(f"First feature keys: {features[0].keys()}")
+        
+        # Pad input features
+        input_features = [feature["input_features"] for feature in features]
+        input_features = torch.nn.utils.rnn.pad_sequence(input_features, batch_first=True)
+        
+        if input_features.dim() == 4 and input_features.shape[1] == 1:
+            input_features = input_features.squeeze(1)
+        
+        print(f"Padded input_features shape: {input_features.shape}")
+        
+        # Pad labels
+        labels = [feature["labels"] for feature in features]
+        labels = torch.nn.utils.rnn.pad_sequence(
+            labels, 
+            batch_first=True, 
+            padding_value=-100
+        )
+        
+        print(f"Padded labels shape: {labels.shape}")
+        
+        # Tạo batch cơ bản
+        batch = {
+            "input_features": input_features,
+            "labels": labels
+        }
+        
+        # Xử lý decoder_input_ids nếu cần
+        if self.include_decoder_input_ids and "decoder_input_ids" in features[0]:
+            decoder_input_ids = [feature["decoder_input_ids"] for feature in features]
+            decoder_input_ids = torch.nn.utils.rnn.pad_sequence(
+                decoder_input_ids, 
+                batch_first=True, 
+                padding_value=self.processor.tokenizer.pad_token_id
+            )
+            batch["decoder_input_ids"] = decoder_input_ids
+            print(f"Included decoder_input_ids with shape: {decoder_input_ids.shape}")
+        
+        # Thêm metadata
+        batch["transcripts"] = [feature.get("transcript", "") for feature in features]
+        batch["file_names"] = [feature.get("file_name", "") for feature in features]
+        
+        return batch
 
 # """
 # Dataset và DataCollator cho Whisper medical fine-tuning dựa trên JSONL
