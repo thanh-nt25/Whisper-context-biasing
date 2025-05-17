@@ -157,7 +157,7 @@ class WhisperDataCollator:
         
         batch = {
             "input_features": input_features,
-            "decoder_input_ids": decoder_input_ids,
+            # "decoder_input_ids": decoder_input_ids,
             # "decoder_attention_mask": decoder_attention_mask,
             "labels": labels,
             "transcripts": transcripts,
