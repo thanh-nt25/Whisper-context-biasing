@@ -24,7 +24,7 @@ from transformers import TrainingArguments
 #           tokenizer=whisper_medical.processor.tokenizer
 #         )
 
-whisper_medical = WhisperMedical(model_id=args.model_dir, freeze_encoder=False)
+whisper_medical = WhisperMedical(model_id="openai/whisper-base.en", freeze_encoder=False)
 
 def my_compute_metrics(eval_preds):
   return compute_metrics_whisper_with_prompt(
