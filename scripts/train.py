@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent.absolute()))
 from models.whisper_medical import WhisperMedical
-from data_utils.dataloader import WhisperMedicalDataset, WhisperDataCollator
+from data_utils.data_loader import WhisperMedicalDataset, WhisperDataCollator
 from trainers.medical_trainer import WhisperMedicalTrainer
 from data_utils.data_processor import load_bias_words, load_jsonl, create_prompt
 from utils.medical_utils import generate_random_prompts
