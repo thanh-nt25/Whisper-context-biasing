@@ -148,7 +148,9 @@ def compute_metrics_whisper_baseline(eval_preds, tokenizer, result_dir="/kaggle/
     
     # Xử lý từng mẫu một để giảm thiểu sử dụng RAM
     pred_ids = eval_preds.predictions
+    print(f"Length of pred ids: {len(pred_ids)}")
     label_ids = eval_preds.label_ids.copy()
+    print(f"Length of label ids: {len(label_ids)}")
     label_ids[label_ids == -100] = tokenizer.pad_token_id
     normalizer = BasicTextNormalizer()
     
