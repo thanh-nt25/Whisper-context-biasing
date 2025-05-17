@@ -89,6 +89,15 @@ def main():
         random_prob=0  # Không sử dụng perturbation trong test
     )
     
+    print(f"Test dataset created with {len(test_dataset)} samples")
+    
+    for i in range(min(3, len(test_dataset))):
+        sample = test_dataset[i]
+        print(f"Sample {i}:")
+        print(f"  Keys: {sample.keys()}")
+        print(f"  Input shape: {sample['input_features'].shape if 'input_features' in sample else 'N/A'}")
+        print(f"  Label shape: {sample['labels'].shape if 'labels' in sample else 'N/A'}")
+    
     training_args = TrainingArguments(
         output_dir="/kaggle/working",
         per_device_eval_batch_size=1,
@@ -102,16 +111,26 @@ def main():
         model=whisper_medical.model,
         args=training_args,
         tokenizer=whisper_medical.processor.tokenizer,
+        # data_collator=DebugWhisperDataCollator(whisper_medical.processor),
         # prompt_ids_list=None,  # if exists
         data_collator=WhisperDataCollator(whisper_medical.processor),
         compute_metrics=my_compute_metrics
     )
 
+    print(f"Before evaluation, test_dataset has {len(test_dataset)} samples")
+    
     results = trainer.evaluate(eval_dataset=test_dataset)
     print(results)
     
     with open("test_results.json", "w", encoding="utf-8") as f:
       json.dump(results, f, indent=2)
+      
+if __name__ == "__main__":
+    # Giải phóng bộ nhớ trước khi bắt đầu
+    gc.collect()
+    torch.cuda.empty_cache()
+    
+    main()
 
     # data_collator = WhisperDataCollator(    
     
@@ -239,9 +258,3 @@ def main():
     
     # print(f"\nResults saved to {args.output}")
 
-if __name__ == "__main__":
-    # Giải phóng bộ nhớ trước khi bắt đầu
-    gc.collect()
-    torch.cuda.empty_cache()
-    
-    main()
