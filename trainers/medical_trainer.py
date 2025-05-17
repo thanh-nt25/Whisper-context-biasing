@@ -48,7 +48,7 @@ class WhisperMedicalTrainer(Trainer):
       return compute_metrics_whisper_with_prompt(
         eval_preds = eval_preds,
         tokenizer = self.tokenizer,
-        prompt_ids_list = self.prompt_ids_list,
+        prompt_ids_list=getattr(self, "prompt_ids_list", None)
       )
     
     def compute_loss(self, model, inputs, return_outputs=False):
