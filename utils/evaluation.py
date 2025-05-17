@@ -151,7 +151,7 @@ def compute_metrics_whisper_baseline(eval_preds, tokenizer, result_dir="/kaggle/
 
     normalizer = BasicTextNormalizer()
 
-    batch_size = 8
+    batch_size = 1
     # total = len(pred_ids)
     results = []
 
@@ -185,6 +185,7 @@ def compute_metrics_whisper_baseline(eval_preds, tokenizer, result_dir="/kaggle/
     # return {"wer": total_wer}
     
     # new wer
+    print(f"Length of pred_ids: {len(pred_ids)}")
     cutted_pred_ids = pred_ids
     cutted_label_ids = label_ids
     
