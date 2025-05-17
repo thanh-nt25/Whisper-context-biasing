@@ -596,7 +596,218 @@ def main():
         print(f"Comparison results saved to {comparison_output}")
 """
 
-
+def debug_prediction_process(model, tokenizer, test_dataset, output_dir):
+    """
+    Thực hiện debug chi tiết quá trình dự đoán
+    """
+    print("\n=== STARTING DETAILED PREDICTION DEBUG ===")
+    
+    # Đặt model ở chế độ đánh giá
+    model.eval()
+    device = next(model.parameters()).device
+    
+    # 1. Kiểm tra dataset
+    print("\n1. Dataset inspection:")
+    print(f"Dataset size: {len(test_dataset)}")
+    sample = test_dataset[0]
+    print(f"Sample keys: {sample.keys()}")
+    for key, value in sample.items():
+        if isinstance(value, torch.Tensor):
+            print(f"  {key} shape: {value.shape}")
+    
+    # 2. Kiểm tra data collator
+    print("\n2. Testing WhisperDataCollator:")
+    collator = WhisperDataCollator(tokenizer)
+    batch = collator([test_dataset[0], test_dataset[1]])
+    print(f"Collated batch keys: {batch.keys()}")
+    for key, value in batch.items():
+        if isinstance(value, torch.Tensor):
+            print(f"  {key} shape: {value.shape}")
+    
+    # 3. Kiểm tra model.forward
+    print("\n3. Testing model.forward:")
+    
+    # Chuyển batch lên device
+    batch_device = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
+    
+    try:
+        with torch.no_grad():
+            # Chỉ sử dụng các keys cần thiết
+            model_inputs = {
+                "input_features": batch_device["input_features"],
+                "labels": batch_device["labels"]
+            }
+            
+            outputs = model(**model_inputs)
+        
+        print("model.forward succeeded!")
+        print(f"  Loss: {outputs.loss}")
+        print(f"  Logits shape: {outputs.logits.shape}")
+    except Exception as e:
+        print(f"Error in model.forward: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    # 4. Kiểm tra model.generate
+    print("\n4. Testing model.generate:")
+    
+    try:
+        with torch.no_grad():
+            generated_ids = model.generate(
+                batch_device["input_features"],
+                max_length=256
+            )
+        
+        print("model.generate succeeded!")
+        print(f"  Generated ids shape: {generated_ids.shape}")
+        
+        # Decode kết quả
+        transcriptions = tokenizer.batch_decode(
+            generated_ids, 
+            skip_special_tokens=True
+        )
+        for i, trans in enumerate(transcriptions):
+            print(f"  Transcription {i}: {trans}")
+    except Exception as e:
+        print(f"Error in model.generate: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    # 5. Kiểm tra prediction_step
+    print("\n5. Testing prediction_step:")
+    
+    # Tạo training args
+    training_args = TrainingArguments(
+        output_dir=output_dir,
+        per_device_eval_batch_size=2,
+        remove_unused_columns=False,
+    )
+    
+    # Tạo trainer để kiểm tra prediction_step
+    debug_trainer = DebugWhisperMedicalTrainer(
+        model=model,
+        args=training_args,
+        tokenizer=tokenizer,
+        data_collator=collator
+    )
+    
+    try:
+        loss, logits, labels = debug_trainer.prediction_step(
+            model, batch_device, prediction_loss_only=False
+        )
+        
+        print("prediction_step succeeded!")
+        print(f"  Loss: {loss}")
+        print(f"  Logits shape: {logits.shape if logits is not None else None}")
+        print(f"  Labels shape: {labels.shape if labels is not None else None}")
+        
+        # Nếu prediction_step thành công, kiểm tra quá trình đánh giá với một tập nhỏ
+        small_dataset = torch.utils.data.Subset(test_dataset, range(3))
+        print("\nTesting evaluate with a very small subset (3 samples):")
+        
+        try:
+            results = debug_trainer.evaluate(eval_dataset=small_dataset)
+            print(f"evaluate succeeded with results: {results}")
+        except Exception as e:
+            print(f"Error in evaluate: {e}")
+            import traceback
+            traceback.print_exc()
+    except Exception as e:
+        print(f"Error in prediction_step: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    # 6. Mô phỏng quá trình evaluation_loop
+    print("\n6. Simulating evaluation_loop:")
+    
+    # Tạo dataloader
+    dataloader = DataLoader(
+        small_dataset,
+        batch_size=1,
+        collate_fn=collator,
+        drop_last=False
+    )
+    
+    print(f"Created dataloader with {len(dataloader)} batches")
+    
+    # Mô phỏng evaluation_loop
+    all_preds = []
+    all_labels = []
+    
+    print("Processing batches:")
+    for step, inputs in enumerate(dataloader):
+        print(f"  Batch {step}:")
+        print(f"    Keys: {inputs.keys()}")
+        
+        # Chuyển inputs lên device
+        inputs = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in inputs.items()}
+        
+        # Dự đoán
+        try:
+            with torch.no_grad():
+                outputs = model(
+                    input_features=inputs["input_features"],
+                    labels=inputs["labels"]
+                )
+                
+                # Lấy logits và labels
+                logits = outputs.logits
+                labels = inputs["labels"]
+                
+                print(f"    Forward pass successful")
+                print(f"    Loss: {outputs.loss}")
+                print(f"    Logits shape: {logits.shape}")
+                
+                # Lưu dự đoán và nhãn
+                predictions = logits.argmax(dim=-1).detach().cpu().numpy()
+                labels = labels.detach().cpu().numpy()
+                
+                all_preds.append(predictions)
+                all_labels.append(labels)
+        except Exception as e:
+            print(f"    Error in batch {step}: {e}")
+            continue
+    
+    # Kiểm tra dự đoán và nhãn
+    if all_preds and all_labels:
+        print("\nGot predictions and labels:")
+        print(f"  Number of prediction batches: {len(all_preds)}")
+        print(f"  Number of label batches: {len(all_labels)}")
+        
+        # Concatenate
+        try:
+            import numpy as np
+            all_preds = np.concatenate(all_preds, axis=0)
+            all_labels = np.concatenate(all_labels, axis=0)
+            
+            print(f"  Concatenated predictions shape: {all_preds.shape}")
+            print(f"  Concatenated labels shape: {all_labels.shape}")
+            
+            # Thử compute_metrics
+            eval_preds = EvalPrediction(predictions=all_preds, label_ids=all_labels)
+            
+            metrics = compute_metrics_whisper_baseline_debug(
+                eval_preds=eval_preds,
+                tokenizer=tokenizer,
+                result_dir=output_dir
+            )
+            
+            print(f"  Computed metrics: {metrics}")
+        except Exception as e:
+            print(f"  Error in concatenation or metrics: {e}")
+            import traceback
+            traceback.print_exc()
+    else:
+        print("No predictions or labels collected")
+    
+    print("\n=== PREDICTION DEBUG COMPLETED ===")
+    
+    return {
+        "debug_complete": True,
+        "dataset_size": len(test_dataset)
+    }
+    
+    
 def main():
     parser = argparse.ArgumentParser(description="Đánh giá mô hình Whisper medical")
     parser.add_argument("--model_dir", type=str, required=True, help="Thư mục chứa mô hình đã huấn luyện")
