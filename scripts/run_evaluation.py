@@ -13,8 +13,10 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.whisper_medical import WhisperMedical
 from data_utils.dataloader import WhisperMedicalDataset, WhisperDataCollator
+from trainers.medical_trainer import WhisperMedicalTrainer
 # from data_utils.data_collator import WhisperDataCollator
 from utils.evaluation import compute_metrics_whisper_with_prompt
+
 
 def calculate_wer(references, predictions):
     valid_pairs = [(ref, pred) for ref, pred in zip(references, predictions) 
@@ -66,21 +68,38 @@ def main():
     test_dataset = WhisperMedicalDataset(
         args.test_jsonl, 
         whisper_medical.processor, 
-        args.test_audio_dir,
-        bias_words_string,
+        audio_dir=args.test_audio_dir,
+        bias_words_string=None,
         max_prompt_length=190,
         random_prob=0  # Không sử dụng perturbation trong test
     )
     
-    results = {
-        "with_description": {},
-        "without_description": {}
-    }
+    trainer = WhisperMedicalTrainer(
+        model=whisper_medical.model,
+        args=training_args,
+        tokenizer=whisper_medical.processor.tokenizer,
+        prompt_ids_list=None,  # if exists
+        data_collator=WhisperDataCollator(whisper_medical.processor),
+        compute_metrics=True,
+    )
+
+    results = trainer.evaluate(eval_dataset=test_dataset)
+    print(results)
     
-    # # Đánh giá với description
-    total_samples = len(test_dataset)
-    successes = 0
-    error_count = 0
+    with open("test_results.json", "w", encoding="utf-8") as f:
+      json.dump(results, f, indent=2)
+
+    # data_collator = WhisperDataCollator(    
+    
+    # results = {
+    #     "with_description": {},
+    #     "without_description": {}
+    # }
+    
+    # # # Đánh giá với description
+    # total_samples = len(test_dataset)
+    # successes = 0
+    # error_count = 0
     
     # with_description_refs = []
     # with_description_preds = []
@@ -117,35 +136,43 @@ def main():
     
     # Đánh giá không có description
     # if args.compare_baseline:
-    without_description_refs = []
-    without_description_preds = []
-    successes = 0
-    error_count = 0
+    # without_description_refs = []
+    # without_description_preds = []
+    # successes = 0
+    # error_count = 0
     
-    print(f"Evaluating {total_samples} samples without description...")
+    # print(f"Evaluating {total_samples} samples without description...")
     
-    for i, item in enumerate(test_dataset):
-        if i % 10 == 0:
-            print(f"Processing {i}/{total_samples}...")
+    # for i, item in enumerate(test_dataset):
+    #     if i % 10 == 0:
+    #         print(f"Processing {i}/{total_samples}...")
         
-        try:
-            audio_path = os.path.join(args.test_audio_dir, item["file_name"])
-            transcript = item["transcript"]
+    #     try:
+    #         audio_path = os.path.join(args.test_audio_dir, item["file_name"])
+    #         transcript = item["transcript"]
             
-            # Transcribe không có description
-            prediction = whisper_medical.transcribe(audio_path)
+    #         # Transcribe không có description
+    #         prediction = whisper_medical.transcribe(audio_path)
             
-            without_description_refs.append(transcript)
-            without_description_preds.append(prediction)
+    #         without_description_refs.append(transcript)
+    #         without_description_preds.append(prediction)
             
-            successes += 1
-        except Exception as e:
-            print(f"Error processing sample {i}: {e}")
-            error_count += 1
+    #         successes += 1
+    #     except Exception as e:
+    #         print(f"Error processing sample {i}: {e}")
+    #         error_count += 1
+    
+    # results = compute_metrics_whisper_with_prompt(
+    #     # whisper_medical, 
+    #     # test_dataset, 
+    #     # bias_words_string
+    #     eval_preds=...,
+    #     tokenizer=whisper_medical.processor.tokenizer,
+    # )
     
     # Tính WER cho without_description
-    wer_without_desc, _ = calculate_wer(without_description_refs, without_description_preds)
-    print(f"WER without description: {wer_without_desc:.4f}")
+    # wer_without_desc, _ = calculate_wer(without_description_refs, without_description_preds)
+    # print(f"WER without description: {wer_without_desc:.4f}")
     # results["without_description"]["wer"] = wer_without_desc
         # results["without_description"]["successful_samples"] = successes
         # results["without_description"]["error_count"] = error_count
@@ -179,14 +206,14 @@ def main():
     #             f.write(f"Pred: {pred}\n\n")
     
     # Hiển thị kết quả
-    print("\nEvaluation Results:")
-    print(f"WER with description: {wer_without_desc:.4f}")
+    # print("\nEvaluation Results:")
+    # print(f"WER with description: {wer_without_desc:.4f}")
     
     # if args.compare_baseline:
     #     print(f"WER without description: {results['without_description']['wer']:.4f}")
     #     print(f"Improvement: {results['improvement']['absolute']:.4f} ({results['improvement']['percent']:.2f}%)")
     
-    print(f"\nResults saved to {args.output}")
+    # print(f"\nResults saved to {args.output}")
 
 if __name__ == "__main__":
     # Giải phóng bộ nhớ trước khi bắt đầu

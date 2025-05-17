@@ -10,6 +10,8 @@ import sys
 from pathlib import Path
 import gc
 
+from utils.evaluation import compute_metrics_whisper_with_prompt
+
 # Thêm thư mục gốc vào path
 sys.path.append(str(Path(__file__).parent.parent.absolute()))
 from models.loss import compute_medical_weighted_loss
@@ -41,6 +43,13 @@ class WhisperMedicalTrainer(Trainer):
         """Giải phóng bộ nhớ GPU"""
         gc.collect()
         torch.cuda.empty_cache()
+        
+    def compute_metrics(self, eval_preds):
+      return compute_metrics_whisper_with_prompt(
+        eval_preds = eval_preds,
+        tokenizer = self.tokenizer,
+        prompt_ids_list = self.prompt_ids_list,
+      )
     
     def compute_loss(self, model, inputs, return_outputs=False):
         """

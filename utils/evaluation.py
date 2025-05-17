@@ -108,6 +108,7 @@ def compute_metrics_whisper_with_prompt(eval_preds, tokenizer, prompt_ids_list=N
     
     # Tính WER
     wer = calculate_wer(references, decoded_preds)
+    print(f"Base WER on utils evaluation: {wer:.4f}")
     
     # Tính thêm CER
     # cer = jiwer.cer(references, decoded_preds)
