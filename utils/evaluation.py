@@ -154,7 +154,7 @@ def compute_metrics_whisper_baseline(eval_preds, tokenizer, result_dir="/kaggle/
     label_ids = labels.copy()
     label_ids[label_ids == -100] = tokenizer.pad_token_id
     
-    print(tokenizer)
+    # print(tokenizer)
     pred_strs = tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
     label_strs = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
 
@@ -163,6 +163,9 @@ def compute_metrics_whisper_baseline(eval_preds, tokenizer, result_dir="/kaggle/
     # Normalize và lọc các cặp hợp lệ
     results = []
     for pred, label in zip(pred_strs, label_strs):
+        label_norm = normalizer(label)
+        pred_norm = normalizer(pred)
+        print(f"Label: {label_norm}, Pred: {pred_norm}")
         if label.strip() and label != "ignore_time_segment_in_scoring":
             results.append((normalizer(label), normalizer(pred)))
 
