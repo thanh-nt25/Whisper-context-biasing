@@ -18,7 +18,7 @@ from models.whisper_medical import WhisperMedical
 from data_utils.dataloader import WhisperMedicalDataset, WhisperDataCollator
 from trainers.medical_trainer import WhisperMedicalTrainer, DebugWhisperMedicalTrainer
 # from data_utils.data_collator import WhisperDataCollator
-from utils.evaluation import compute_metrics_whisper_with_prompt, compute_metrics_whisper_baseline
+from utils.evaluation import compute_metrics_whisper_with_prompt, compute_metrics_whisper_baseline_debug
 
 from transformers import TrainingArguments
 
@@ -29,12 +29,7 @@ from transformers import TrainingArguments
 
 whisper_medical = WhisperMedical(model_id="openai/whisper-base.en", freeze_encoder=False)
 
-def my_compute_metrics(eval_preds):
-  return compute_metrics_whisper_baseline(
-    eval_preds=eval_preds,
-    tokenizer=whisper_medical.processor.tokenizer,
-    # prompt_ids_list=None
-  )
+
   
 def test_model_basic_functionality(whisper_medical, audio_path):
     """Kiểm tra chức năng cơ bản của model với một file âm thanh"""
