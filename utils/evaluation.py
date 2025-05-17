@@ -137,61 +137,89 @@ def compute_metrics_whisper_baseline(eval_preds, tokenizer, result_dir="/kaggle/
     print("\n\n Triggered compute_metrics_whisper_baseline()")
     gc.collect()
     
-    pred_ids = eval_preds.predictions
-    labels = eval_preds.label_ids
-    label_ids = labels.copy()
-    label_ids[label_ids == -100] = tokenizer.pad_token_id
-    
-    normalizer = BasicTextNormalizer()
-    results = []
-    
-    # Xử lý từng phần nhỏ để tránh tràn RAM
-    batch_size = 4  # Điều chỉnh kích thước phù hợp với RAM của bạn
-    num_samples = len(pred_ids)
-    
+    # Setup để lưu kết quả
     os.makedirs(result_dir, exist_ok=True)
-    with open(os.path.join(result_dir, "refs_and_preds.txt"), "w", encoding="utf-8") as f:
-        for i in range(0, num_samples, batch_size):
-            end_idx = min(i + batch_size, num_samples)
-            
-            # Xử lý từng batch nhỏ
-            batch_pred_ids = pred_ids[i:end_idx]
-            batch_label_ids = label_ids[i:end_idx]
-            
-            # Decode từng batch
-            batch_pred_strs = tokenizer.batch_decode(batch_pred_ids, skip_special_tokens=True)
-            batch_label_strs = tokenizer.batch_decode(batch_label_ids, skip_special_tokens=True)
-            
-            # Xử lý từng cặp trong batch
-            for pred, label in zip(batch_pred_strs, batch_label_strs):
-                if label.strip() and label != "ignore_time_segment_in_scoring":
-                    norm_label = normalizer(label)
-                    norm_pred = normalizer(pred)
-                    results.append((norm_label, norm_pred))
-                    
-                    # Ghi ngay lập tức để giảm bộ nhớ
-                    f.write(f"Ref: {norm_label}\n")
-                    f.write(f"Pred: {norm_pred}\n\n")
-            
-            # Giải phóng bộ nhớ sau mỗi batch
-            del batch_pred_ids, batch_label_ids, batch_pred_strs, batch_label_strs
-            gc.collect()
+    refs_file = os.path.join(result_dir, "references.txt")
+    preds_file = os.path.join(result_dir, "predictions.txt")
     
-    if not results:
+    # Mở file để ghi kết quả từng mẫu
+    refs_writer = open(refs_file, "w", encoding="utf-8")
+    preds_writer = open(preds_file, "w", encoding="utf-8")
+    
+    # Xử lý từng mẫu một để giảm thiểu sử dụng RAM
+    pred_ids = eval_preds.predictions
+    label_ids = eval_preds.label_ids.copy()
+    label_ids[label_ids == -100] = tokenizer.pad_token_id
+    normalizer = BasicTextNormalizer()
+    
+    valid_sample_count = 0
+    total_wer_sum = 0
+    batch_size = 1  # Xử lý từng mẫu một
+    
+    try:
+        for i in range(len(pred_ids)):
+            # Giải phóng bộ nhớ trước mỗi lần xử lý
+            gc.collect()
+            
+            # Chỉ xử lý 1 mẫu tại một thời điểm
+            single_pred = pred_ids[i:i+1]
+            single_label = label_ids[i:i+1]
+            
+            # Decode từng mẫu và giải phóng ngay lập tức
+            try:
+                pred_str = tokenizer.decode(single_pred[0], skip_special_tokens=True)
+                label_str = tokenizer.decode(single_label[0], skip_special_tokens=True)
+                
+                if label_str.strip() and label_str != "ignore_time_segment_in_scoring":
+                    # Chuẩn hóa văn bản
+                    norm_pred = normalizer(pred_str)
+                    norm_label = normalizer(label_str)
+                    
+                    # Tính WER cho mẫu hiện tại
+                    sample_wer = wer([norm_label], [norm_pred])
+                    total_wer_sum += sample_wer
+                    valid_sample_count += 1
+                    
+                    # Ghi ra file và xả bộ nhớ đệm
+                    refs_writer.write(f"{norm_label}\n")
+                    preds_writer.write(f"{norm_pred}\n")
+                    refs_writer.flush()
+                    preds_writer.flush()
+                    
+                    # Log tiến độ
+                    if valid_sample_count % 10 == 0:
+                        print(f"Processed {valid_sample_count} valid samples.")
+                
+                # Xóa biến tạm thời
+                del pred_str, label_str
+                gc.collect()
+                
+            except Exception as e:
+                print(f"Error processing sample {i}: {e}")
+                continue
+                
+            # Xóa biến tạm thời
+            del single_pred, single_label
+            
+    finally:
+        # Đảm bảo đóng file
+        refs_writer.close()
+        preds_writer.close()
+    
+    # Tính WER tổng thể
+    if valid_sample_count == 0:
         print("⚠️ Warning: No valid samples for WER calculation.")
         return {"wer": 100.0}
     
-    references = [ref for ref, _ in results]
-    predictions = [pred for _, pred in results]
-    total_wer = 100 * wer(references, predictions)
-    print(f"✅ Final WER: {total_wer:.2f}%")
+    avg_wer = (total_wer_sum / valid_sample_count) * 100
+    print(f"✅ Final WER: {avg_wer:.2f}% (based on {valid_sample_count} samples)")
     
-    # Giải phóng bộ nhớ trước khi trả về kết quả
-    del pred_ids, label_ids, results
-    gc.collect()
+    # Tạo file tổng hợp nếu cần
+    with open(os.path.join(result_dir, "summary.txt"), "w", encoding="utf-8") as f:
+        f.write(f"WER: {avg_wer:.2f}%\n")
+        f.write(f"Valid samples: {valid_sample_count}\n")
     
-    return {"wer": total_wer}    
-    # new wer
+    return {"wer": avg_wer}    # new wer
     # print(f"Length of pred_ids: {len(pred_ids)}")
     # cutted_pred_ids = pred_ids
     # cutted_label_ids = label_ids
