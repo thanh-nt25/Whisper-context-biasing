@@ -4,6 +4,7 @@ Script đánh giá mô hình Whisper medical
 
 import argparse
 import os
+import librosa
 import torch
 import gc
 import json
