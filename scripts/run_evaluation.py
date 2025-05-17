@@ -77,7 +77,7 @@ def main():
     )
     
     training_args = TrainingArguments(
-        output_dir=args.output_dir,
+        output_dir="/kaggle/working",
         per_device_eval_batch_size=2,
         remove_unused_columns=False,
         do_eval=True,
