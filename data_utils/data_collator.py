@@ -1,4 +1,4 @@
-from transformers_prompt import WhisperFeatureExtractor, WhisperTokenizer
+from transformers import WhisperFeatureExtractor, WhisperTokenizer
 from typing import Any, Dict, List, Union
 import torch
 from dataclasses import dataclass
