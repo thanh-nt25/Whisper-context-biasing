@@ -24,24 +24,27 @@ from transformers import TrainingArguments
 #           tokenizer=whisper_medical.processor.tokenizer
 #         )
 
+whisper_medical = WhisperMedical(model_id=args.model_dir, freeze_encoder=False)
+
 def my_compute_metrics(eval_preds):
   return compute_metrics_whisper_with_prompt(
     eval_preds=eval_preds,
     tokenizer=whisper_medical.processor.tokenizer,
     # prompt_ids_list=None
   )
-def calculate_wer(references, predictions):
-    valid_pairs = [(ref, pred) for ref, pred in zip(references, predictions) 
-                   if ref.strip() and pred is not None]
+  
+# def calculate_wer(references, predictions):
+#     valid_pairs = [(ref, pred) for ref, pred in zip(references, predictions) 
+#                    if ref.strip() and pred is not None]
     
-    if not valid_pairs:
-        return 1.0, [1.0] * len(references)
+#     if not valid_pairs:
+#         return 1.0, [1.0] * len(references)
     
-    refs, preds = zip(*valid_pairs)
+#     refs, preds = zip(*valid_pairs)
     
-    overall_wer = jiwer.wer(refs, preds)
+#     overall_wer = jiwer.wer(refs, preds)
     
-    return overall_wer
+#     return overall_wer
 
 
 def main():
