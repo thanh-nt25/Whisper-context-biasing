@@ -17,6 +17,8 @@ from trainers.medical_trainer import WhisperMedicalTrainer
 # from data_utils.data_collator import WhisperDataCollator
 from utils.evaluation import compute_metrics_whisper_with_prompt
 
+from transformers import TrainingArguments
+
 
 def calculate_wer(references, predictions):
     valid_pairs = [(ref, pred) for ref, pred in zip(references, predictions) 
