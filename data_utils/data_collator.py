@@ -219,7 +219,7 @@ class DataCollatorSpeechS2SWhitPadding:
 metric = evaluate.load("wer")
 
 
-def compute_wer(pred, args, prompts):
+def compute_wer(pred, args, prompts=None):
     pred_ids = pred.predictions
     label_ids = pred.label_ids
     normalizer = BasicTextNormalizer()
@@ -256,6 +256,7 @@ def compute_wer(pred, args, prompts):
                 cutted_pred_ids.append(pred_ids[i])
                 cutted_label_ids.append(label_ids[i])
     else:
+        print("No prompts provided, using full sequences.")
         cutted_pred_ids = pred_ids
         cutted_label_ids = label_ids
 
