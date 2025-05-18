@@ -14,7 +14,7 @@ from jiwer import wer
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.whisper_medical import WhisperMedicalForConditionalGeneration
-from models.whisper_medical_rebuilt import WhisperMedicalForConditionalGeneration
+# from models.whisper_medical_rebuilt import WhisperMedicalForConditionalGeneration
 
 from data_utils.data_loader import PromptWhisperDataset
 from data_utils.data_collator import DataCollatorSpeechS2SWhitPadding
