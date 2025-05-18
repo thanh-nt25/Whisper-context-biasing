@@ -100,7 +100,9 @@ if __name__ == "__main__":
         compute_metrics=compute_wer,
     )
 
-    print("First sample: ", data_test[0])
+    if (len(data_test) == 0):
+        print("No test data found!")
+        exit(0)
     print("length of test data: ", len(data_test))
 
     print("Starting evaluation!")
