@@ -122,8 +122,10 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
           processed_audio = self.feature_extractor(audio, sampling_rate=self.sample_rate).input_features
           processed_audio = torch.tensor(processed_audio[0])  # Ensure processed_audio is a tensor
 
+          print("Audio Device:", processed_audio.device)
           # Encode text
           encoded_labels = torch.tensor(self.tokenizer.encode(raw_text.lower()))  # Convert to tensor
+          print("Labels Device:", encoded_labels.device)
 
           if self.prompt:
               if self.random_prompt and 'train' in self.phase:
@@ -140,6 +142,7 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                   encoded_prompt = encoded_prompt[:190]
 
               encoded_prompt = torch.tensor(encoded_prompt)  # Ensure encoded_prompt is a tensor
+              print("Prompt Device:", encoded_prompt.device)
 
               # Check that all values are valid tensors
               if processed_audio is None or encoded_prompt is None or encoded_labels is None:
