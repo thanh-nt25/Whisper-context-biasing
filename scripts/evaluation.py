@@ -56,7 +56,7 @@ if __name__ == "__main__":
     
     # "/kaggle/input/medical-syn-med-test/medical-united-syn-med-test"
     data_root = "/kaggle/input"
-    data_dir = "/medical-syn-med-test/medical-united-syn-med-test"
+    data_dir = "medical-syn-med-test/medical-united-syn-med-test"
     
     print("Starting loading data!")
     data_train = PromptWhisperDataset(base_path=os.path.join(data_root,data_dir), phase='train', feature_extractor=feature_extractor, audio_type=".mp3", tokenizer=tokenizer, prompt=args.prompt, random=args.random)
