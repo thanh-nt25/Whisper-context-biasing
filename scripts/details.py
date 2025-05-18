@@ -78,8 +78,4 @@ if __name__ == "__main__":
     print(tokens)
 
     
-    # model = WhisperForConditionalGeneration.from_pretrained(f'openai/whisper-base.en')
-    
-    # model.config.forced_decoder_ids = None
-    # model.config.suppress_tokens = []
     

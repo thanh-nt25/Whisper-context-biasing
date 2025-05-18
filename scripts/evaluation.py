@@ -16,7 +16,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from models.whisper_medical import WhisperMedicalForConditionalGeneration
 
 from data_utils.data_loader import PromptWhisperDataset
-from data_utils.data_collator import DataCollatorSpeechS2SWhitPadding, compute_wer
+from data_utils.data_collator import DataCollatorSpeechS2SWhitPadding
+
+from data_utils.compute_metric import compute_wer
 
 from transformers import (
     Seq2SeqTrainingArguments,

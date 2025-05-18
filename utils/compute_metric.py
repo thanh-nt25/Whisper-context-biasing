@@ -10,10 +10,6 @@ import re
 import unicodedata
 import regex
 
-from rapidfuzz.distance import Opcodes
-
-# wer_metric = evaluate.load("wer")
-
 # non-ASCII letters that are not separated by "NFKD" normalization
 ADDITIONAL_DIACRITICS = {
     "œ": "oe",
@@ -90,44 +86,63 @@ class BasicTextNormalizer:
 
         return s
 
-def compute_metrics_whisper_with_prompt(eval_preds, tokenizer, prompt_ids_list=None, save_path="/kaggle/working"):
-    """
-    eval_preds: tuple(predictions, labels)
-    prompt_ids_list: List[List[int]], chứa các prompt_ids tương ứng từng sample
-    """
-    from jiwer import wer
+
+# metric
+metric = evaluate.load("wer")
+
+def compute_wer(pred):
+# def compute_wer(pred, prompts):
+    pred_ids = pred.predictions
+    label_ids = pred.label_ids
     normalizer = BasicTextNormalizer()
-    predictions, labels = eval_preds
+    tokenizer = WhisperTokenizer.from_pretrained(f'openai/whisper-base.en', language='en', task='transcribe')
 
-    tokenizer.pad_token_id = tokenizer.pad_token_id or 0
-    labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+    label_ids[label_ids == -100] = tokenizer.pad_token_id
+    total_wer = 0
+    results = []
+    batch_size = 4
+    print("\n\nDone inference!")
+    print("Start decoding and calculating WER...")
 
-    decoded_preds, decoded_labels = [], []
+    # cutted_label_ids = []
+    # cutted_pred_ids = []
 
-    for i in range(len(predictions)):
-        pred_ids = predictions[i]
-        label_ids = labels[i]
-        prompt_ids = prompt_ids_list[i] if prompt_ids_list is not None else []
+    # if len(prompts) != 0:
+    #     i la sample, cutted se lay toan bo doan ve sau, prompts o dang truoc
+    #     for i in tqdm(range(0, len(pred_ids))):
+    #         cutted_pred_ids.append(pred_ids[i][len(prompts[i][0])+1:])
+    #         cutted_label_ids.append(label_ids[i][len(prompts[i][0])+1:])
 
-        # Cat prompt
-        cut_len = len(prompt_ids) + 1 if len(prompt_ids) > 0 else 0
-        pred_text = tokenizer.decode(pred_ids[cut_len:], skip_special_tokens=True)
-        label_text = tokenizer.decode(label_ids[cut_len:], skip_special_tokens=True)
+    for i in tqdm(range(0, len(pred_ids), batch_size)):
+        batch_pred_ids = pred_ids[i:i + batch_size]
+        batch_label_ids = label_ids[i:i + batch_size]
 
-        pred_text = normalizer(pred_text)
-        label_text = normalizer(label_text)
+        pre_strs = tokenizer.batch_decode(batch_pred_ids, skip_special_tokens=True)
+        label_strs = tokenizer.batch_decode(batch_label_ids, skip_special_tokens=True)
+        # pre_strs, label_strs = zip(*[(normalizer(pred), normalizer(label)) for pred, label in zip(pre_strs, label_strs) if label != 'ignore_time_segment_in_scoring'])
 
-        if label_text.strip() and label_text != "ignore_time_segment_in_scoring":
-            decoded_preds.append(pred_text)
-            decoded_labels.append(label_text)
+        filtered_pre_strs = []
+        filtered_label_strs = []
 
-    output_file = os.path.join(save_path, "refs_and_pred.txt")
-    with open(output_file, "w", encoding="utf-8") as f:
-        for ref, pred in zip(decoded_labels, decoded_preds):
-            f.write(f"Ref: {ref}\n")
-            f.write(f"Pred: {pred}\n\n")
+        for pred, label in zip(pre_strs, label_strs):
+            if label != 'ignore_time_segment_in_scoring':
+                # 'ignore_time_segment_in_scoring'
+                filtered_pre_strs.append(normalizer(pred))
+                filtered_label_strs.append(normalizer(label))
 
-    if not decoded_labels:
-        return {"wer": 100.0}
+        if filtered_pre_strs and filtered_label_strs:
+                pre_strs, label_strs = zip(*zip(filtered_pre_strs, filtered_label_strs))
+        else:
+            pre_strs, label_strs = (), ()
+        results.extend(zip(label_strs, pre_strs))
 
-    return {"wer": 100 * wer(decoded_labels, decoded_preds)}
+    with open(os.path.join("/kaggle/working", 'refs_and_pred.txt'), 'w') as f:
+        for ref, pred in results:
+            f.write(f'Ref : {ref}\n')
+            f.write(f'Pred:{pred}\n\n')
+
+    pre_strs = [pred for _, pred in results]
+    label_strs = [ref for ref, _ in results]
+    total_wer = 100 * metric.compute(predictions=pre_strs, references=label_strs)
+
+    return {'wer': total_wer}
