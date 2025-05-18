@@ -347,7 +347,7 @@ def compute_wer(pred):
         results.extend(zip(label_strs, pre_strs))
 
     # 파일에 모든 결과를 한 번에 쓰기
-    with open(os.path.join("/kaggle/working/results", 'refs_and_pred.txt'), 'w') as f:
+    with open(os.path.join("/kaggle/working", 'refs_and_pred.txt'), 'w') as f:
         for ref, pred in results:
             f.write(f'Ref:{ref}\n')
             f.write(f'Pred:{pred}\n\n')
