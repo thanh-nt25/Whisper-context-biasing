@@ -63,8 +63,6 @@ if __name__ == "__main__":
     data_eval = PromptWhisperDataset(base_path=os.path.join(data_root,data_dir), phase='dev', feature_extractor=feature_extractor, audio_type=".mp3", tokenizer=tokenizer, prompt=args.prompt, basic=args.basic)
     data_test = PromptWhisperDataset(base_path=os.path.join(data_root,data_dir), phase='test', feature_extractor=feature_extractor, audio_type=".mp3", tokenizer=tokenizer, prompt=args.prompt, basic=args.basic)    
     
-    print(data_test[0])
-    
     model = WhisperForConditionalGeneration.from_pretrained(f'openai/whisper-base.en')
     
     model.config.forced_decoder_ids = None
@@ -101,6 +99,9 @@ if __name__ == "__main__":
         tokenizer=processor.feature_extractor,
         compute_metrics=compute_wer,
     )
+
+    print("First sample: ", data_test[0])
+    print("length of test data: ", len(data_test))
 
     print("Starting evaluation!")
     result = trainer.evaluate(data_test)
