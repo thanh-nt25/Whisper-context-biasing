@@ -1,17 +1,9 @@
-"""
-Mô hình Whisper với các tùy chỉnh cho y tế
-"""
-
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
 import torch
 import os
 import sys
 from pathlib import Path
 import librosa
-
-sys.path.append(str(Path(__file__).parent.parent.absolute()))
-from config.config import BASE_MODEL, FREEZE_ENCODER
-from data_utils.data_processor import create_prompt, generate_medical_terms_mapping_from_file
 
 class WhisperMedicalForConditionalGeneration:
     def __init__(self, model_id="openai/whisper-base", freeze_encoder=True):
@@ -26,7 +18,10 @@ class WhisperMedicalForConditionalGeneration:
         self.model.to(self.device)
         
         if freeze_encoder:
+            print("Freezing encoder")
             self._freeze_encoder()
+        else:
+            print("Load full base model without freezing encoder")
     
     def _freeze_encoder(self):
         """Đóng băng encoder để chỉ fine-tune decoder"""
