@@ -287,21 +287,21 @@ class WhisperMedicalEncoderLayer(nn.Module):
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
         
         # Medical adaptation layers
-        self.medical_adapter_1 = MedicalAdapter(
-            config, 
-            d_model=self.embed_dim,
-            dropout=0.1, 
-            bottleneck=256, 
-            adapter_scalar=0.1
-        )
+        # self.medical_adapter_1 = MedicalAdapter(
+        #     config, 
+        #     d_model=self.embed_dim,
+        #     dropout=0.1, 
+        #     bottleneck=256, 
+        #     adapter_scalar=0.1
+        # )
         
-        self.medical_adapter_2 = MedicalAdapter(
-            config, 
-            d_model=self.embed_dim,
-            dropout=0.1, 
-            bottleneck=256, 
-            adapter_scalar=0.1
-        )
+        # self.medical_adapter_2 = MedicalAdapter(
+        #     config, 
+        #     d_model=self.embed_dim,
+        #     dropout=0.1, 
+        #     bottleneck=256, 
+        #     adapter_scalar=0.1
+        # )
 
     def forward(
         self,
@@ -332,7 +332,7 @@ class WhisperMedicalEncoderLayer(nn.Module):
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
         
         # Apply medical adapter 1
-        hidden_states = hidden_states + self.medical_adapter_1(hidden_states)
+        # hidden_states = hidden_states + self.medical_adapter_1(hidden_states)
         hidden_states = residual + hidden_states
 
         residual = hidden_states
@@ -343,7 +343,7 @@ class WhisperMedicalEncoderLayer(nn.Module):
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
         
         # Apply medical adapter 2
-        hidden_states = hidden_states + self.medical_adapter_2(hidden_states)
+        # hidden_states = hidden_states + self.medical_adapter_2(hidden_states)
         hidden_states = residual + hidden_states
 
         if hidden_states.dtype == torch.float16 and (
@@ -391,24 +391,24 @@ class WhisperMedicalDecoderLayer(nn.Module):
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
         # Medical adaptation layers
-        self.medical_adapter_1 = MedicalAdapter(
-            config, 
-            d_model=self.embed_dim,
-            dropout=0.1, 
-            bottleneck=256, 
-            adapter_scalar=0.1
-        )
+        # self.medical_adapter_1 = MedicalAdapter(
+        #     config, 
+        #     d_model=self.embed_dim,
+        #     dropout=0.1, 
+        #     bottleneck=256, 
+        #     adapter_scalar=0.1
+        # )
         
-        self.medical_adapter_2 = MedicalAdapter(
-            config, 
-            d_model=self.embed_dim,
-            dropout=0.1, 
-            bottleneck=256, 
-            adapter_scalar=0.1
-        )
+        # self.medical_adapter_2 = MedicalAdapter(
+        #     config, 
+        #     d_model=self.embed_dim,
+        #     dropout=0.1, 
+        #     bottleneck=256, 
+        #     adapter_scalar=0.1
+        # )
         
         # Medical-specific cross attention enhancement
-        self.medical_cross_attention_gate = nn.Linear(self.embed_dim, 1)
+        # self.medical_cross_attention_gate = nn.Linear(self.embed_dim, 1)
 
     def forward(
         self,
@@ -457,7 +457,7 @@ class WhisperMedicalDecoderLayer(nn.Module):
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
         
         # Apply medical adapter 1
-        hidden_states = hidden_states + self.medical_adapter_1(hidden_states)
+        # hidden_states = hidden_states + self.medical_adapter_1(hidden_states)
         hidden_states = residual + hidden_states
 
         # Cross-Attention Block with Medical Enhancement
@@ -478,11 +478,6 @@ class WhisperMedicalDecoderLayer(nn.Module):
                 output_attentions=output_attentions,
             )
             hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
-            
-            # Medical-specific cross attention gating
-            gate = torch.sigmoid(self.medical_cross_attention_gate(hidden_states))
-            hidden_states = gate * hidden_states + (1 - gate) * residual
-            
             hidden_states = residual + hidden_states
 
             # add cross-attn to positions 3,4 of present_key_value tuple
@@ -496,8 +491,6 @@ class WhisperMedicalDecoderLayer(nn.Module):
         hidden_states = self.fc2(hidden_states)
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
         
-        # Apply medical adapter 2
-        hidden_states = hidden_states + self.medical_adapter_2(hidden_states)
         hidden_states = residual + hidden_states
 
         outputs = (hidden_states,)
@@ -535,14 +528,6 @@ class WhisperMedicalEncoder(WhisperMedicalPreTrainedModel):
         self.conv1 = nn.Conv1d(self.num_mel_bins, embed_dim, kernel_size=3, padding=1)
         self.conv2 = nn.Conv1d(embed_dim, embed_dim, kernel_size=3, stride=2, padding=1)
         
-        # Medical domain feature enhancement
-        self.medical_feature_enhancer = nn.Sequential(
-            nn.Conv1d(embed_dim, embed_dim, kernel_size=1),
-            nn.BatchNorm1d(embed_dim),
-            nn.ReLU(),
-            nn.Dropout(0.1)
-        )
-
         self.embed_positions = nn.Embedding(self.max_source_positions, embed_dim)
         self.embed_positions.requires_grad_(False)
 
@@ -615,8 +600,6 @@ class WhisperMedicalEncoder(WhisperMedicalPreTrainedModel):
         inputs_embeds = nn.functional.gelu(self.conv1(input_features))
         inputs_embeds = nn.functional.gelu(self.conv2(inputs_embeds))
         
-        # Apply medical feature enhancement
-        inputs_embeds = self.medical_feature_enhancer(inputs_embeds)
 
         inputs_embeds = inputs_embeds.permute(0, 2, 1)
         embed_pos = self.embed_positions.weight
@@ -700,10 +683,6 @@ class WhisperMedicalDecoder(WhisperMedicalPreTrainedModel):
         self.embed_tokens = nn.Embedding(config.vocab_size, config.d_model, self.padding_idx)
         self.embed_positions = WhisperPositionalEmbedding(self.max_target_positions, config.d_model)
         
-        # Medical domain vocabulary adaptation
-        self.medical_vocab_adapter = nn.Linear(config.d_model, config.d_model)
-        self.medical_vocab_gate = nn.Linear(config.d_model, 1)
-
         self.layers = nn.ModuleList([WhisperMedicalDecoderLayer(config) for _ in range(config.decoder_layers)])
         self._use_flash_attention_2 = config._attn_implementation == "flash_attention_2"
         self._use_sdpa = config._attn_implementation == "sdpa"
@@ -817,12 +796,9 @@ class WhisperMedicalDecoder(WhisperMedicalPreTrainedModel):
         past_key_values_length = past_key_values[0][0].shape[2] if past_key_values is not None else 0
 
         if inputs_embeds is None:
+            if len(input_ids) > 448:
+                print(input_ids)
             inputs_embeds = self.embed_tokens(input_ids)
-            
-            # Apply medical vocabulary adaptation
-            medical_adaptation = self.medical_vocab_adapter(inputs_embeds)
-            medical_gate = torch.sigmoid(self.medical_vocab_gate(inputs_embeds))
-            inputs_embeds = medical_gate * medical_adaptation + (1 - medical_gate) * inputs_embeds
 
         if self._use_flash_attention_2:
             # 2d mask is passed through the layers
@@ -845,13 +821,6 @@ class WhisperMedicalDecoder(WhisperMedicalPreTrainedModel):
             positions = self.embed_positions(inputs_embeds, past_key_values_length=past_key_values_length)
 
         hidden_states = inputs_embeds + positions
-        
-        # Integrate medical context if provided
-        if medical_context is not None:
-            # Simple context integration - can be enhanced with attention mechanisms
-            context_gate = torch.sigmoid(torch.mean(medical_context, dim=1, keepdim=True))
-            hidden_states = hidden_states + context_gate * medical_context[:, :hidden_states.size(1), :]
-        
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
         if self.gradient_checkpointing and self.training:
@@ -952,10 +921,6 @@ class WhisperMedicalModel(WhisperMedicalPreTrainedModel):
 
         self.encoder = WhisperMedicalEncoder(config)
         self.decoder = WhisperMedicalDecoder(config)
-        
-        # Medical-specific components
-        self.medical_domain_classifier = nn.Linear(config.d_model, 1)
-        self.medical_confidence_predictor = nn.Linear(config.d_model, 1)
         
         # Initialize weights and apply final processing
         self.post_init()
@@ -1125,36 +1090,14 @@ class WhisperMedicalForConditionalGeneration(WhisperMedicalPreTrainedModel):
     base_model_prefix = "model"
     _tied_weights_keys = ["proj_out.weight"]
 
-    def __init__(self, config: WhisperConfig, freeze_encoder=True):
+    def __init__(self, config: WhisperConfig):
         super().__init__(config)
         self.model = WhisperMedicalModel(config)
         self.proj_out = nn.Linear(config.d_model, config.vocab_size, bias=False)
-        
-        # Medical-specific output layers
-        self.medical_terminology_head = nn.Linear(config.d_model, config.vocab_size)
-        self.medical_confidence_head = nn.Linear(config.d_model, 1)
-        self.medical_gate = nn.Linear(config.d_model, 1)
-        
-        # Medical domain adaptation parameters
-        self.freeze_encoder_flag = freeze_encoder
-        
+                
         # Initialize weights and apply final processing
         self.post_init()
         
-        if freeze_encoder:
-            print("Freezing encoder for medical domain adaptation")
-            self._freeze_encoder()
-        else:
-            print("Loading full base model without freezing encoder")
-
-    def _freeze_encoder(self):
-        """
-        Freeze encoder parameters for medical domain fine-tuning
-        """
-        for param in self.model.encoder.parameters():
-            param.requires_grad = False
-        print("Frozen encoder for medical adaptation")
-
     def get_encoder(self):
         return self.model.get_encoder()
 
@@ -1261,32 +1204,23 @@ class WhisperMedicalForConditionalGeneration(WhisperMedicalPreTrainedModel):
         # Standard language modeling output
         lm_logits = self.proj_out(outputs[0])
         
-        # Medical-specific output processing
-        medical_logits = self.medical_terminology_head(outputs[0])
-        medical_confidence = torch.sigmoid(self.medical_confidence_head(outputs[0]))
-        medical_gate_scores = torch.sigmoid(self.medical_gate(outputs[0]))
-        
-        # Combine standard and medical outputs
-        final_logits = medical_gate_scores * medical_logits + (1 - medical_gate_scores) * lm_logits
-
         loss = None
         medical_loss = None
         
         if labels is not None:
             loss_fct = CrossEntropyLoss()
-            # Move labels to correct device to enable PP
-            labels = labels.to(final_logits.device)
-            loss = loss_fct(final_logits.view(-1, self.config.vocab_size), labels.reshape(-1))
-            
-            # Medical-specific loss if medical labels are provided
-            if medical_labels is not None:
-                medical_labels = medical_labels.to(medical_logits.device)
-                medical_loss = loss_fct(medical_logits.view(-1, self.config.vocab_size), medical_labels.reshape(-1))
-                # Combine losses with medical domain weighting
-                loss = 0.7 * loss + 0.3 * medical_loss
-
+            # move labels to correct device to enable PP
+            if prompts is not None:
+                prompt_labels = labels.clone()
+                for i, prompt in enumerate(prompts):
+                    prompt_labels[i, :len(prompt)] = -100
+                prompt_labels = prompt_labels.to(lm_logits.device)
+                loss = loss_fct(lm_logits.view(-1, self.config.vocab_size), prompt_labels.reshape(-1))
+            else:
+                labels = labels.to(lm_logits.device)
+                loss = loss_fct(lm_logits.view(-1, self.config.vocab_size), labels.reshape(-1))
         if not return_dict:
-            output = (final_logits,) + outputs[1:]
+            output = (lm_logits,) + outputs[1:]
             return ((loss,) + output) if loss is not None else output
 
         return Seq2SeqLMOutput(
@@ -1316,15 +1250,14 @@ class WhisperMedicalForConditionalGeneration(WhisperMedicalPreTrainedModel):
         prompt_ids: Optional[torch.Tensor] = None,
         num_segment_frames: Optional[int] = None,
         return_token_timestamps: Optional[bool] = None,
-        # return_segments: bool = False,
+        return_segments: bool = False,
         attention_mask: Optional[torch.Tensor] = None,
-        # time_precision: int = 0.02,
+        time_precision: int = 0.02,
         return_dict_in_generate: Optional[bool] = None,
-        medical_context: Optional[torch.Tensor] = None,
         **kwargs,
     ):
         """
-        Transcribes or translates passed mel input features to a sequence of token ids with medical domain enhancement.
+        Transcribes or translates passed mel input features to a sequence of token ids.
 
         <Tip warning={true}>
 
@@ -1350,39 +1283,128 @@ class WhisperMedicalForConditionalGeneration(WhisperMedicalPreTrainedModel):
                 priority: 1) from the `generation_config.json` model file, if it exists; 2) from the model
                 configuration. Please note that unspecified parameters will inherit [`~generation.GenerationConfig`]'s
                 default values, whose documentation should be checked to parameterize generation.
-            medical_context (`torch.Tensor`, *optional*):
-                Medical domain-specific context tensor to guide generation towards medical terminology.
+            logits_processor (`LogitsProcessorList`, *optional*):
+                Custom logits processors that complement the default logits processors built from arguments and
+                generation config. If a logit processor is passed that is already created with the arguments or a
+                generation config an error is thrown. This feature is intended for advanced users.
+            stopping_criteria (`StoppingCriteriaList`, *optional*):
+                Custom stopping criteria that complement the default stopping criteria built from arguments and a
+                generation config. If a stopping criteria is passed that is already created with the arguments or a
+                generation config an error is thrown. This feature is intended for advanced users.
+            prefix_allowed_tokens_fn (`Callable[[int, torch.Tensor], List[int]]`, *optional*):
+                If provided, this function constraints the beam search to allowed tokens only at each step. If not
+                provided no constraint is applied. This function takes 2 arguments: the batch ID `batch_id` and
+                `input_ids`. It has to return a list with the allowed tokens for the next generation step conditioned
+                on the batch ID `batch_id` and the previously generated tokens `inputs_ids`. This argument is useful
+                for constrained generation conditioned on the prefix, as described in [Autoregressive Entity
+                Retrieval](https://arxiv.org/abs/2010.00904).
+            synced_gpus (`bool`, *optional*, defaults to `False`):
+                Whether to continue running the while loop until max_length (needed for ZeRO stage 3)
+            return_timestamps (`bool`, *optional*):
+                Whether to return the timestamps with the text. This enables the `WhisperTimestampsLogitsProcessor`.
+            task (`str`, *optional*):
+                Task to use for generation, either "translate" or "transcribe". The `model.config.forced_decoder_ids`
+                will be updated accordingly.
+            language (`str`, *optional*):
+                Language token to use for generation, can be either in the form of `<|en|>`, `en` or `english`. You can
+                find all the possible language tokens in the `model.generation_config.lang_to_id` dictionary.
+            is_multilingual (`bool`, *optional*):
+                Whether or not the model is multilingual.
+            prompt_ids (`torch.Tensor`, *optional*):
+                Rank-1 tensor of token IDs created by passing text to [`~WhisperProcessor.get_prompt_ids`] that is
+                provided as a prompt to each chunk. This can be used to provide or "prompt-engineer" a context for
+                transcription, e.g. custom vocabularies or proper nouns to make it more likely to predict those words
+                correctly. It cannot be used in conjunction with `decoder_start_token_id` as it overwrites this value.
+            return_token_timestamps (`bool`, *optional*):
+                Whether to return token-level timestamps with the text. This can be used with or without the
+                `return_timestamps` option. To get word-level timestamps, use the tokenizer to group the tokens into
+                words.
+            return_segments (`bool`, *optional*, defaults to `False`):
+                Whether to additionally return a list of all segments. Note that this option can only be enabled
+                when doing long-form transcription.
+            attention_mask (`torch.Tensor`, *optional*):
+                `attention_mask` needs to be passed when doing long-form transcription using a batch size > 1.
+            time_precision (`int`, *optional*, defaults to 0.02):
+                The duration of output token in seconds. *E.g.* 0.02 means that a generated token on average accounts
+                for 20 ms.
+            return_dict_in_generate (`bool`, *optional*, defaults to `False`):
+                Whether or not to return a [`~utils.ModelOutput`] instead of just returning the generated tokens.
+                Note that when doing long-form transcription, `return_dict_in_generate` can only be enabled when
+                `return_segments` is set True. In this case the generation outputs of each segment is added to each
+                segment.
             kwargs (`Dict[str, Any]`, *optional*):
                 Ad hoc parametrization of `generate_config` and/or additional model-specific kwargs that will be
-                forwarded to the `forward` function of the model.
+                forwarded to the `forward` function of the model. If the model is an encoder-decoder model, encoder
+                specific kwargs should not be prefixed and decoder specific kwargs should be prefixed with *decoder_*.
 
         Return:
-            [`~utils.ModelOutput`] or `torch.LongTensor` or `Dict[str, Any]`: Medical-domain adapted generation output.
+            [`~utils.ModelOutput`] or `torch.LongTensor` or `Dict[str, Any]`: A [`~utils.ModelOutput`] (if `return_dict_in_generate=True`
+            or when `config.return_dict_in_generate=True`) or a `torch.FloatTensor` or a dict of segments when `return_segments=True`.
+
+                If the passed input is > 30 seconds / > 3000 mel input features and `return_segments=True` then a dictionary of generated sequence ids, called `sequences` and a list of each generated segment is returned.
+
+                else if the passed input is <= 30 seconds / >= 3000 mel input features, the possible [`~utils.ModelOutput`] types are:
+
+                    - [`~generation.GenerateEncoderDecoderOutput`],
+                    - [`~generation.GenerateBeamEncoderDecoderOutput`]
+
+                else only the generated output sequence ids are returned.
 
         Example:
 
-        - *Medical transcription*: Enhanced for medical terminology and context.
+        - *Longform transcription*: To transcribe or translate audios longer than 30 seconds, process the audio files without truncation and pass all mel features at once to generate.
 
         ```python
         >>> import torch
-        >>> from transformers import AutoProcessor, WhisperMedicalForConditionalGeneration
+        >>> from transformers import AutoProcessor, WhisperForConditionalGeneration
+        >>> from datasets import load_dataset, Audio
+
+        >>> processor = AutoProcessor.from_pretrained("openai/whisper-tiny.en")
+        >>> model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-tiny.en")
+        >>> model.cuda()
+
+        >>> # load audios > 30 seconds
+        >>> ds = load_dataset("distil-whisper/meanwhile", "default")["test"]
+        >>> # resample to 16kHz
+        >>> ds = ds.cast_column("audio", Audio(sampling_rate=16000))
+        >>> # take first 8 audios and retrieve array
+        >>> audio = ds[:8]["audio"]
+        >>> audio = [x["array"] for x in audio]
+
+        >>> # make sure to NOT truncate the input audio, to return the `attention_mask` and to pad to the longest audio
+        >>> inputs = processor(audio, return_tensors="pt", truncation=False, padding="longest", return_attention_mask=True, sampling_rate=16_000)
+        >>> inputs = inputs.to("cuda", torch.float32)
+
+        >>> # transcribe audio to ids
+        >>> generated_ids = model.generate(**inputs)
+
+        >>> transcription = processor.batch_decode(generated_ids, skip_special_tokens=True)
+        >>> transcription[0]
+        ' Folks, if you watch the show, you know, I spent a lot of time right over there. Patiently and astutely scrutinizing the boxwood and mahogany chest set of the day's biggest stories developing the central headline pawns, definitely maneuvering an oso topical night to F6, fainting a classic Sicilian, nade door variation on the news, all the while seeing eight moves deep and patiently marshalling the latest press releases into a fisher's shows in Lip Nitsky attack that culminates in the elegant lethal slow-played, all-passant checkmate that is my nightly monologue. But sometimes, sometimes, folks, I. CHEERING AND APPLAUSE Sometimes I startle away, cubside down in the monkey bars of a condemned playground on a super fun site. Get all hept up on goofballs. Rummage that were discarded tag bag of defective toys. Yank out a fist bowl of disembodied doll limbs, toss them on a stained kid's place mat from a defunct dennies. set up a table inside a rusty cargo container down by the Wharf and challenged toothless drifters to the godless bughouse blitz of tournament that is my segment. Meanwhile!'
+        ```
+
+        - *Shortform transcription*: If passed mel input features are < 30 seconds, the whole audio will be transcribed with a single call to generate.
+
+        ```python
+        >>> import torch
+        >>> from transformers import AutoProcessor, WhisperForConditionalGeneration
         >>> from datasets import load_dataset
 
-        >>> processor = AutoProcessor.from_pretrained("medical-whisper-base")
-        >>> model = WhisperMedicalForConditionalGeneration.from_pretrained("medical-whisper-base")
+        >>> processor = AutoProcessor.from_pretrained("openai/whisper-tiny.en")
+        >>> model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-tiny.en")
 
-        >>> ds = load_dataset("medical-speech-dataset", "clinical-notes", split="validation")
+        >>> ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
 
         >>> inputs = processor(ds[0]["audio"]["array"], return_tensors="pt")
         >>> input_features = inputs.input_features
 
-        >>> # Generate with medical context enhancement
         >>> generated_ids = model.generate(inputs=input_features)
 
         >>> transcription = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
         >>> transcription
-        ' Patient exhibits signs of acute respiratory distress syndrome with bilateral infiltrates on chest imaging.'
+        ' Mr. Quilter is the apostle of the middle classes, and we are glad to welcome his gospel.'
         ```
+
         """
 
         if "inputs" in kwargs:
@@ -1392,31 +1414,467 @@ class WhisperMedicalForConditionalGeneration(WhisperMedicalPreTrainedModel):
                 FutureWarning,
             )
 
-        # Store medical context for use during generation
-        if medical_context is not None:
-            kwargs["medical_context"] = medical_context
+        if generation_config is None:
+            generation_config = copy.deepcopy(self.generation_config)
 
-        # Use parent class generation with medical enhancements
-        return super().generate(
-            input_features=input_features,
-            generation_config=generation_config,
-            logits_processor=logits_processor,
-            stopping_criteria=stopping_criteria,
-            prefix_allowed_tokens_fn=prefix_allowed_tokens_fn,
-            synced_gpus=synced_gpus,
-            return_timestamps=return_timestamps,
-            task=task,
-            language=language,
-            is_multilingual=is_multilingual,
-            prompt_ids=prompt_ids,
-            num_segment_frames=num_segment_frames,
-            return_token_timestamps=return_token_timestamps,
-            # return_segments=return_segments,
-            attention_mask=attention_mask,
-            # time_precision=time_precision,
-            return_dict_in_generate=return_dict_in_generate,
-            **kwargs,
+        return_dict_in_generate = (
+            return_dict_in_generate
+            if return_dict_in_generate is not None
+            else generation_config.return_dict_in_generate
         )
+
+        input_stride = self.model.encoder.conv1.stride[0] * self.model.encoder.conv2.stride[0]
+        if num_segment_frames is None:
+            num_segment_frames = input_stride * self.config.max_source_positions
+
+        # 1. Check whether we're in shortform or longform mode
+        if input_features is not None:
+            total_input_frames = input_features.shape[-1]
+        elif "encoder_outputs" in kwargs:
+            encoder_outputs_shape = (
+                kwargs["encoder_outputs"][0].shape
+                if isinstance(kwargs["encoder_outputs"], BaseModelOutput)
+                else kwargs["encoder_outputs"].shape
+            )
+            total_input_frames = encoder_outputs_shape[1] * input_stride
+        else:
+            raise ValueError("Make sure to provide either `input_features` or `encoder_outputs` to `generate`.")
+
+        is_shortform = total_input_frames <= num_segment_frames
+
+        # 2. Make sure the generation config is correctly set depending on whether timestamps are to be returned or not
+        if return_timestamps is True:
+            if not hasattr(generation_config, "no_timestamps_token_id"):
+                raise ValueError(
+                    "You are trying to return timestamps, but the generation config is not properly set. "
+                    "Make sure to initialize the generation config with the correct attributes that are needed such as `no_timestamps_token_id`. "
+                    "For more details on how to generate the approtiate config, refer to https://github.com/huggingface/transformers/issues/21878#issuecomment-1451902363"
+                )
+            generation_config.return_timestamps = return_timestamps
+        elif not is_shortform:
+            if return_timestamps is False:
+                raise ValueError(
+                    "You have passed more than 3000 mel input features (> 30 seconds) which automatically enables long-form generation which "
+                    "requires the model to predict timestamp tokens. Please either pass `return_timestamps=True` or make sure to pass no more than 3000 mel input features."
+                )
+
+            if not hasattr(generation_config, "no_timestamps_token_id"):
+                raise ValueError(
+                    "You have passed more than 3000 mel input features (> 30 seconds) which automatically enables long-form generation which "
+                    "requires the generation config to have `no_timestamps_token_id` correctly. "
+                    "Make sure to initialize the generation config with the correct attributes that are needed such as `no_timestamps_token_id`. "
+                    "For more details on how to generate the approtiate config, refer to https://github.com/huggingface/transformers/issues/21878#issuecomment-1451902363"
+                    "or make sure to pass no more than 3000 mel input features."
+                )
+
+            logger.info("Setting `return_timestamps=True` for long-form generation.")
+            generation_config.return_timestamps = True
+        else:
+            generation_config.return_timestamps = False
+
+        # 3. Make sure to correctly set language-related parameters
+        if is_multilingual is not None:
+            if not hasattr(generation_config, "is_multilingual"):
+                raise ValueError(
+                    "The generation config is outdated and is thus not compatible with the `is_multilingual` argument "
+                    "to `generate`. Please update the generation config as per the instructions "
+                    "https://github.com/huggingface/transformers/issues/25084#issuecomment-1664398224"
+                )
+            generation_config.is_multilingual = is_multilingual
+
+        if hasattr(generation_config, "is_multilingual") and not generation_config.is_multilingual:
+            if task is not None or language is not None:
+                raise ValueError(
+                    "Cannot specify `task` or `language` for an English-only model. If the model is intended to be "
+                    "multilingual, pass `is_multilingual=True` to generate, or update the generation config."
+                )
+
+        if language is not None:
+            if not hasattr(generation_config, "lang_to_id"):
+                raise ValueError(
+                    "The generation config is outdated and is thus not compatible with the `language` argument "
+                    "to `generate`. Either set the language using the `forced_decoder_ids` in the model config, "
+                    "or update the generation config as per the instructions https://github.com/huggingface/transformers/issues/25084#issuecomment-1664398224"
+                )
+            language = language.lower()
+            generation_config.language = language
+        if task is not None:
+            if not hasattr(generation_config, "task_to_id"):
+                raise ValueError(
+                    "The generation config is outdated and is thus not compatible with the `task` argument "
+                    "to `generate`. Either set the task using the `forced_decoder_ids` in the model config, "
+                    "or update the generation config as per the instructions https://github.com/huggingface/transformers/issues/25084#issuecomment-1664398224"
+                )
+            generation_config.task = task
+
+        # 4. Add forced decoder ids depending on passed `language`, `task`,`prompt_ids`, `return_token_timestamps` and `return_timestamps`
+        forced_decoder_ids = None
+        # Legacy code for backward compatibility
+        if hasattr(self.config, "forced_decoder_ids") and self.config.forced_decoder_ids is not None:
+            forced_decoder_ids = self.config.forced_decoder_ids
+        elif (
+            hasattr(self.generation_config, "forced_decoder_ids")
+            and self.generation_config.forced_decoder_ids is not None
+        ):
+            forced_decoder_ids = self.generation_config.forced_decoder_ids
+        else:
+            forced_decoder_ids = kwargs.get("forced_decoder_ids", None)
+
+        if task is not None or language is not None or (forced_decoder_ids is None and prompt_ids is not None):
+            forced_decoder_ids = []
+            if hasattr(generation_config, "language"):
+                if generation_config.language in generation_config.lang_to_id.keys():
+                    language_token = generation_config.language
+                elif generation_config.language in TO_LANGUAGE_CODE.keys():
+                    language_token = f"<|{TO_LANGUAGE_CODE[generation_config.language]}|>"
+                elif generation_config.language in TO_LANGUAGE_CODE.values():
+                    language_token = f"<|{generation_config.language}|>"
+                else:
+                    is_language_code = len(generation_config.language) == 2
+                    raise ValueError(
+                        f"Unsupported language: {generation_config.language}. Language should be one of:"
+                        f" {list(TO_LANGUAGE_CODE.values()) if is_language_code else list(TO_LANGUAGE_CODE.keys())}."
+                    )
+                if language_token not in generation_config.lang_to_id:
+                    raise ValueError(
+                        f"{language_token} is not supported by this specific model as it is not in the `generation_config.lang_to_id`."
+                        "(You should just add it to the generation config)"
+                    )
+                forced_decoder_ids.append((1, generation_config.lang_to_id[language_token]))
+            else:
+                forced_decoder_ids.append((1, None))  # automatically detect the language
+
+            if hasattr(generation_config, "task"):
+                if generation_config.task in TASK_IDS:
+                    forced_decoder_ids.append((2, generation_config.task_to_id[generation_config.task]))
+                else:
+                    raise ValueError(
+                        f"The `{generation_config.task}`task is not supported. The task should be one of `{TASK_IDS}`"
+                    )
+            elif hasattr(generation_config, "task_to_id"):
+                forced_decoder_ids.append((2, generation_config.task_to_id["transcribe"]))  # defaults to transcribe
+            if hasattr(generation_config, "no_timestamps_token_id") and not generation_config.return_timestamps:
+                idx = forced_decoder_ids[-1][0] + 1 if forced_decoder_ids else 1
+                forced_decoder_ids.append((idx, generation_config.no_timestamps_token_id))
+
+        if forced_decoder_ids is not None:
+            generation_config.forced_decoder_ids = forced_decoder_ids
+
+        if prompt_ids is not None:
+            if kwargs.get("decoder_start_token_id") is not None:
+                raise ValueError(
+                    "When specifying `prompt_ids`, you cannot also specify `decoder_start_token_id` as it gets overwritten."
+                )
+            prompt_ids = prompt_ids.tolist()
+            decoder_start_token_id, *text_prompt_ids = prompt_ids
+            # Slicing the text prompt ids in a manner consistent with the OpenAI implementation
+            # to accomodate context space for the prefix (see https://github.com/openai/whisper/blob/c09a7ae299c4c34c5839a76380ae407e7d785914/whisper/decoding.py#L599)
+            text_prompt_ids = text_prompt_ids[-self.config.max_target_positions // 2 - 1 :]
+            # Set the decoder_start_token_id to <|startofprev|>
+            kwargs.update({"decoder_start_token_id": decoder_start_token_id})
+
+            # If the user passes `max_new_tokens`, increase its number to account for the prompt
+            if kwargs.get("max_new_tokens", None) is not None:
+                kwargs["max_new_tokens"] += len(text_prompt_ids)
+                if kwargs["max_new_tokens"] >= self.config.max_target_positions:
+                    raise ValueError(
+                        f"The length of the sliced `prompt_ids` is {len(text_prompt_ids)}, and the `max_new_tokens` "
+                        f"{kwargs['max_new_tokens'] - len(text_prompt_ids)}. Thus, the combined length of the sliced "
+                        f"`prompt_ids` and `max_new_tokens` is: {kwargs['max_new_tokens']}. This exceeds the "
+                        f"`max_target_positions` of the Whisper model: {self.config.max_target_positions}. "
+                        "You should either reduce the length of your prompt, or reduce the value of `max_new_tokens`, "
+                        f"so that their combined length is less that {self.config.max_target_positions}."
+                    )
+
+            # Reformat the forced_decoder_ids to incorporate the prompt
+            non_prompt_forced_decoder_ids = (
+                kwargs.pop("forced_decoder_ids", None) or generation_config.forced_decoder_ids
+            )
+            forced_decoder_ids = [
+                *text_prompt_ids,
+                generation_config.decoder_start_token_id,
+                *[token for _rank, token in non_prompt_forced_decoder_ids],
+            ]
+            forced_decoder_ids = [(rank + 1, token) for rank, token in enumerate(forced_decoder_ids)]
+            generation_config.forced_decoder_ids = forced_decoder_ids
+
+        if return_token_timestamps:
+            kwargs["output_attentions"] = True
+            return_dict_in_generate = True
+            kwargs["output_scores"] = True
+
+            if getattr(generation_config, "task", None) == "translate":
+                logger.warning("Token-level timestamps may not be reliable for task 'translate'.")
+            if not hasattr(generation_config, "alignment_heads"):
+                raise ValueError(
+                    "Model generation config has no `alignment_heads`, token-level timestamps not available. "
+                    "See https://gist.github.com/hollance/42e32852f24243b748ae6bc1f985b13a on how to add this property to the generation config."
+                )
+
+            if kwargs.get("num_frames") is not None:
+                generation_config.num_frames = kwargs.pop("num_frames")
+
+        if generation_config.return_timestamps is True:
+            last_forced_decoder_ids = (
+                generation_config.forced_decoder_ids[-1][-1]
+                if hasattr(self.config, "forced_decoder_ids") and self.config.forced_decoder_ids
+                else None
+            )
+            if last_forced_decoder_ids == self.generation_config.no_timestamps_token_id:
+                # remove no_timestamp to be forcefully generated if we want to return timestamps
+                # this is also important to make sure `WhisperTimeStampLogitsProcessor` functions correctly
+                forced_decoder_ids = generation_config.forced_decoder_ids[:-1]
+                # Make sure that if list is empty we set it to None
+                generation_config.forced_decoder_ids = None if len(forced_decoder_ids) == 0 else forced_decoder_ids
+
+            timestamp_processor = [WhisperTimeStampLogitsProcessor(generation_config)]
+            logits_processor = (
+                timestamp_processor if logits_processor is None else timestamp_processor + logits_processor
+            )
+
+        # 5. If we're in shortform mode, simple generate the whole input at once and return the output
+        if is_shortform:
+            outputs = super().generate(
+                input_features,
+                generation_config,
+                logits_processor,
+                stopping_criteria,
+                prefix_allowed_tokens_fn,
+                synced_gpus,
+                return_dict_in_generate=return_dict_in_generate,
+                **kwargs,
+            )
+
+            if return_token_timestamps and hasattr(generation_config, "alignment_heads"):
+                num_frames = getattr(generation_config, "num_frames", None)
+                outputs["token_timestamps"] = self._extract_token_timestamps(
+                    outputs, generation_config.alignment_heads, num_frames=num_frames
+                )
+
+            return outputs
+
+        # 6. Else we're in longform mode which is more complex. We need to chunk the audio input depending on when the model generated
+        # timestamp tokens
+        # 6.1 Set running parameters for while loop
+        if not return_segments and return_dict_in_generate:
+            raise ValueError(
+                "Make sure to set `return_segments=True` to return generation outputs as part of the `'segments' key.`"
+            )
+
+        # if input is longer than 30 seconds we default to long-form generation
+        timestamp_begin = self.generation_config.no_timestamps_token_id + 1
+        # input stride is mel frames per encoder output vector which is the product of all conv strides
+        batch_size = input_features.shape[0]
+
+        if batch_size > 1 and attention_mask is None:
+            raise ValueError(
+                "When doing long-form audio transcription, make sure to pass an `attention_mask`. You can retrieve the `attention_mask` by doing `processor(audio, ..., return_attention_mask=True)` "
+            )
+        elif batch_size > 1:
+            max_frames = attention_mask.sum(-1).cpu().to(torch.long)
+            seek = torch.zeros((batch_size,), dtype=torch.long)
+        else:
+            max_frames = torch.ones((1,), dtype=torch.long) * total_input_frames
+            seek = torch.zeros((1,), dtype=torch.long)
+
+        current_segments = [[] for _ in range(batch_size)]
+        cur_to_prev_index_map = list(range(batch_size))
+
+        # batch size can decrease during the run
+        cur_bsz = prev_bsz = batch_size
+
+        # 6.2 Transcribe audio until we reach the end of all input audios
+        while (seek < max_frames).any():
+            prev_bsz = cur_bsz
+
+            # 6.3 NOTE: When in longform transcription mode and batch size > 1 we need to dynamically reduce the batch size during the loop
+            # in case one audio finished earlier than another one. Thus, we need to keep a table of "previous-index-2-current-index" in order
+            # to know which original audio is being decoded
+            new_cur_to_prev_index_map = []
+            for i in range(prev_bsz):
+                prev_i = cur_to_prev_index_map[i]
+                if seek[prev_i] >= max_frames[prev_i]:
+                    cut_index = i + (cur_bsz - prev_bsz)
+                    cur_bsz -= 1
+                    input_features = torch.cat([input_features[:cut_index], input_features[cut_index + 1 :]], dim=0)
+                else:
+                    # cut out index that goes away
+                    new_cur_to_prev_index_map.append(prev_i)
+
+            # 6.4  Set updated index map, duration of previously decoded chunks and number of max frames of current decoding chunk
+            cur_to_prev_index_map = new_cur_to_prev_index_map
+            time_offset = seek * time_precision / input_stride
+            seek_num_frames = (max_frames - seek).clamp(max=num_segment_frames)
+
+            # 6.5 Make sure that all inputs are padded to the same input length
+            segment_input = []
+            for i in range(cur_bsz):
+                prev_i = cur_to_prev_index_map[i]
+                segment_input_slice = input_features[
+                    i : i + 1, :, seek[prev_i] : seek[prev_i] + seek_num_frames[prev_i]
+                ]
+
+                if segment_input_slice.shape[-1] < num_segment_frames:
+                    # pad to 3000 if necessary
+                    segment_input_slice = F.pad(
+                        segment_input_slice, pad=(0, num_segment_frames - segment_input_slice.shape[-1])
+                    )
+
+                segment_input.append(segment_input_slice)
+
+            segment_input = torch.cat(segment_input, dim=0)
+
+            # 6.6 Batch generate current chunk
+            seek_outputs = super().generate(
+                segment_input,
+                generation_config,
+                logits_processor,
+                stopping_criteria,
+                prefix_allowed_tokens_fn,
+                synced_gpus,
+                return_dict_in_generate=return_dict_in_generate,
+                **kwargs,
+            )
+
+            if return_token_timestamps and hasattr(generation_config, "alignment_heads"):
+                num_frames = getattr(generation_config, "num_frames", None)
+                seek_outputs["token_timestamps"] = self._extract_token_timestamps(
+                    seek_outputs, generation_config.alignment_heads, num_frames=num_frames
+                )
+
+            if return_dict_in_generate:
+                seek_sequences = seek_outputs["sequences"]
+                seek_outputs = [
+                    {k: v[i] for k, v in seek_outputs.items()}
+                    for i in range(next(iter(seek_outputs.values())).size(0))
+                ]
+            else:
+                seek_sequences = seek_outputs
+
+            # 6.7 Loop over each decoded audio individually as each decoding can be of a different length
+            for i, seek_sequence in enumerate(seek_sequences):
+                prev_i = cur_to_prev_index_map[i]
+
+                # make sure we cut a predicted EOS token if we are not finished with the generation yet
+                is_not_final = (seek[prev_i] + num_segment_frames) < max_frames[prev_i]
+                if is_not_final and seek_sequence[-1] == self.generation_config.eos_token_id:
+                    seek_sequence = seek_sequence[:-1]
+
+                # remove all padding tokens
+                if seek_sequence[-1] == self.generation_config.pad_token_id:
+                    num_paddings = (seek_sequence == self.generation_config.pad_token_id).sum()
+                    seek_sequence = seek_sequence[:-num_paddings]
+
+                segments, segment_offset = self._retrieve_segment(
+                    seek_sequence=seek_sequence,
+                    seek_outputs=seek_outputs,
+                    time_offset=time_offset,
+                    timestamp_begin=timestamp_begin,
+                    seek_num_frames=seek_num_frames,
+                    cur_bsz=cur_bsz,
+                    time_precision=time_precision,
+                    input_stride=input_stride,
+                    prev_idx=prev_i,
+                    idx=i,
+                )
+
+                current_segments[prev_i] += segments
+                seek[prev_i] += segment_offset
+
+        # 7. Once all segments are added to the list of all segments, called `current_segments`, we extract the predicted
+        # output tokens from the list of dicts. If we use batch size > 1, we make sure to pad the output
+        sequences = []
+        max_total_length = 0
+        for current_segment_list in current_segments:
+            sequences.append(torch.cat([d["tokens"] for d in current_segment_list], dim=-1))
+            max_total_length = max(max_total_length, len(sequences[-1]))
+
+        for i in range(batch_size):
+            sequences[i] = F.pad(
+                sequences[i], pad=(0, max_total_length - len(sequences[i])), value=self.generation_config.pad_token_id
+            )
+
+        sequences = torch.stack(sequences, dim=0)
+
+        # 8. If we return all segments, the predicted output sequences are put under `"sequences"`.
+        if return_segments:
+            return {"sequences": sequences, "segments": current_segments}
+
+        return sequences
+
+    @staticmethod
+    def _retrieve_segment(
+        seek_sequence,
+        seek_outputs,
+        time_offset,
+        timestamp_begin,
+        seek_num_frames,
+        cur_bsz,
+        time_precision,
+        input_stride,
+        prev_idx,
+        idx,
+    ):
+        # find the predicted "end of segment" predictions of Whisper
+        # "end of segment" predictions occur whenever Whisper predicts a timestamp token
+        timestamp_tokens: torch.Tensor = seek_sequence.ge(timestamp_begin)
+        single_timestamp_ending = timestamp_tokens[-2:].tolist() == cur_bsz * [[False, True]]
+        timestamp_segment_indices = torch.where(timestamp_tokens[:-1] & timestamp_tokens[1:])[0]
+
+        # If whisper predicted a "end of segment" via a timestep token, let's go ever each
+        # "end of segment" prediction and slice the decoding into segments accordingly
+        if len(timestamp_segment_indices) > 0:
+            # if the output contains two consecutive timestamp tokens
+            slices = timestamp_segment_indices.tolist()
+            segments = []
+            if single_timestamp_ending:
+                slices.append(len(seek_sequence))
+
+            last_slice = 0
+            # Add each segment to list of all segments
+            for current_slice in slices:
+                sliced_tokens = seek_sequence[last_slice + 1 : current_slice + 1]
+                start_timestamp_pos = sliced_tokens[0].item() - timestamp_begin
+                end_timestamp_pos = sliced_tokens[-1].item() - timestamp_begin
+                segments.append(
+                    {
+                        "start": time_offset[prev_idx] + start_timestamp_pos * time_precision,
+                        "end": time_offset[prev_idx] + end_timestamp_pos * time_precision,
+                        "tokens": sliced_tokens,
+                        "result": seek_outputs[idx],
+                    }
+                )
+                last_slice = current_slice
+
+            if single_timestamp_ending:
+                # single timestamp at the end means no speech after the last timestamp.
+                segment_offset = seek_num_frames[prev_idx]
+            else:
+                # otherwise, ignore the unfinished segment and seek to the last timestamp
+                # here we throw away all predictions after the last predicted "end of segment"
+                # since we are cutting right in the middle of an audio
+                last_timestamp_pos = seek_sequence[last_slice].item() - timestamp_begin
+                segment_offset = last_timestamp_pos * input_stride
+        else:
+            # If whisper does not predict any "end of segment" token, then
+            # the whole decoding is considered a segment and we add it to the list of segments
+            timestamps = seek_sequence[timestamp_tokens.nonzero().flatten()]
+            last_timestamp_pos = seek_num_frames[prev_idx]
+            if timestamps.numel() > 0 and timestamps[-1].item() != timestamp_begin:
+                # no consecutive timestamps but it has a timestamp; use the last one.
+                last_timestamp_pos = timestamps[-1].item() - timestamp_begin
+
+            segments = [
+                {
+                    "start": time_offset[prev_idx],
+                    "end": time_offset[prev_idx] + last_timestamp_pos * time_precision,
+                    "tokens": seek_sequence,
+                    "result": seek_outputs[idx],
+                }
+            ]
+            segment_offset = seek_num_frames[prev_idx]
+
+        return segments, segment_offset
 
     def prepare_inputs_for_generation(
         self,
@@ -1425,7 +1883,6 @@ class WhisperMedicalForConditionalGeneration(WhisperMedicalPreTrainedModel):
         use_cache=None,
         encoder_outputs=None,
         attention_mask=None,
-        medical_context=None,
         **kwargs,
     ):
         if past_key_values is not None:
@@ -1440,19 +1897,13 @@ class WhisperMedicalForConditionalGeneration(WhisperMedicalPreTrainedModel):
 
             decoder_input_ids = decoder_input_ids[:, remove_prefix_length:]
 
-        # Include medical context in generation inputs
-        generation_inputs = {
+        return {
             "encoder_outputs": encoder_outputs,
             "past_key_values": past_key_values,
             "decoder_input_ids": decoder_input_ids,
             "use_cache": use_cache,
             "decoder_attention_mask": None,
         }
-        
-        if medical_context is not None:
-            generation_inputs["medical_context"] = medical_context
-            
-        return generation_inputs
 
     @staticmethod
     def _reorder_cache(past_key_values, beam_idx):
@@ -1466,7 +1917,8 @@ class WhisperMedicalForConditionalGeneration(WhisperMedicalPreTrainedModel):
     def _extract_token_timestamps(self, generate_outputs, alignment_heads, time_precision=0.02, num_frames=None):
         """
         Calculates token-level timestamps using the encoder-decoder cross-attentions and dynamic time-warping (DTW) to
-        map each output token to a position in the input audio. Enhanced for medical domain accuracy.
+        map each output token to a position in the input audio. If `num_frames` is specified, the encoder-decoder
+        cross-attentions will be cropped before applying DTW.
 
         Returns:
             tensor containing the timestamps in seconds for each predicted token
@@ -1507,17 +1959,23 @@ class WhisperMedicalForConditionalGeneration(WhisperMedicalPreTrainedModel):
         batch_size = timestamps.shape[0]
 
         if num_frames is not None:
-            # Handle both uniform and varying frame counts
+            # two cases:
+            # 1. num_frames is the same for each sample -> compute the DTW matrix for each sample in parallel
+            # 2. num_frames is different, compute the DTW matrix for each sample sequentially
+
+            # we're using np.unique because num_frames can be int/list/tuple
             if len(np.unique(num_frames)) == 1:
+                # if num_frames is the same, no need to recompute matrix, std and mean for each element of the batch
                 num_frames = num_frames if isinstance(num_frames, int) else num_frames[0]
+
                 weights = weights[..., : num_frames // 2]
             else:
-                # num_frames is of shape (batch_size,) whereas batch_size is truly batch_size*num_return_sequences
+                # num_frames is of shape (batch_size,) whereas batch_size is truely batch_size*num_return_sequences
                 repeat_time = batch_size if isinstance(num_frames, int) else batch_size // len(num_frames)
                 num_frames = np.repeat(num_frames, repeat_time)
 
         if num_frames is None or isinstance(num_frames, int):
-            # Normalize and smooth the weights.
+            # Normalize and smoothen the weights.
             std = torch.std(weights, dim=-2, keepdim=True, unbiased=False)
             mean = torch.mean(weights, dim=-2, keepdim=True)
             weights = (weights - mean) / std
@@ -1531,7 +1989,7 @@ class WhisperMedicalForConditionalGeneration(WhisperMedicalPreTrainedModel):
             if num_frames is not None and isinstance(num_frames, (tuple, list, np.ndarray)):
                 matrix = weights[batch_idx, ..., : num_frames[batch_idx] // 2]
 
-                # Normalize and smooth the weights.
+                # Normalize and smoothen the weights.
                 std = torch.std(matrix, dim=-2, keepdim=True, unbiased=False)
                 mean = torch.mean(matrix, dim=-2, keepdim=True)
                 matrix = (matrix - mean) / std
@@ -1548,121 +2006,3 @@ class WhisperMedicalForConditionalGeneration(WhisperMedicalPreTrainedModel):
             timestamps[batch_idx, 1:] = torch.tensor(jump_times)
 
         return timestamps
-
-    def get_medical_confidence(self, hidden_states):
-        """
-        Extract medical domain confidence scores from hidden states.
-        
-        Args:
-            hidden_states: Decoder hidden states
-            
-        Returns:
-            Medical confidence scores
-        """
-        return torch.sigmoid(self.medical_confidence_head(hidden_states))
-    
-    def adapt_for_medical_domain(self, medical_vocab_path=None, medical_context_embeddings=None):
-        """
-        Adapt the model specifically for medical domain.
-        
-        Args:
-            medical_vocab_path: Path to medical vocabulary file
-            medical_context_embeddings: Pre-computed medical context embeddings
-        """
-        if medical_vocab_path is not None:
-            # Load and integrate medical vocabulary
-            # This would require custom implementation based on vocabulary format
-            pass
-            
-        if medical_context_embeddings is not None:
-            # Integrate medical context embeddings
-            # This could be used to initialize medical adapters
-            pass
-            
-        print("Model adapted for medical domain")
-
-
-# Additional utility functions for medical domain adaptation
-
-class MedicalVocabularyProcessor:
-    """
-    Processor for handling medical-specific vocabulary and terminology.
-    """
-    
-    def __init__(self, medical_vocab_file=None, medical_abbreviations_file=None):
-        self.medical_vocab = {}
-        self.medical_abbreviations = {}
-        
-        if medical_vocab_file:
-            self.load_medical_vocabulary(medical_vocab_file)
-            
-        if medical_abbreviations_file:
-            self.load_medical_abbreviations(medical_abbreviations_file)
-    
-    def load_medical_vocabulary(self, vocab_file):
-        """Load medical vocabulary from file."""
-        # Implementation would depend on file format
-        pass
-    
-    def load_medical_abbreviations(self, abbrev_file):
-        """Load medical abbreviations from file."""
-        # Implementation would depend on file format
-        pass
-    
-    def expand_medical_abbreviations(self, text):
-        """Expand medical abbreviations in text."""
-        for abbrev, expansion in self.medical_abbreviations.items():
-            text = text.replace(abbrev, expansion)
-        return text
-    
-    def validate_medical_terminology(self, text):
-        """Validate and suggest corrections for medical terminology."""
-        # Implementation for medical term validation
-        pass
-
-
-class MedicalAudioPreprocessor:
-    """
-    Preprocessor for medical audio with domain-specific enhancements.
-    """
-    
-    def __init__(self, noise_reduction=True, medical_filter=True):
-        self.noise_reduction = noise_reduction
-        self.medical_filter = medical_filter
-    
-    def preprocess_medical_audio(self, audio_array, sample_rate=16000):
-        """
-        Preprocess audio for medical domain.
-        
-        Args:
-            audio_array: Input audio array
-            sample_rate: Audio sample rate
-            
-        Returns:
-            Preprocessed audio optimized for medical speech recognition
-        """
-        processed_audio = audio_array
-        
-        if self.noise_reduction:
-            # Apply noise reduction techniques specific to medical environments
-            processed_audio = self._apply_medical_noise_reduction(processed_audio)
-        
-        if self.medical_filter:
-            # Apply filters to enhance medical speech characteristics
-            processed_audio = self._apply_medical_filters(processed_audio)
-        
-        return processed_audio
-    
-    def _apply_medical_noise_reduction(self, audio):
-        """Apply noise reduction for medical environments."""
-        # Implementation would use audio processing libraries
-        return audio
-    
-    def _apply_medical_filters(self, audio):
-        """Apply filters optimized for medical speech."""
-        # Implementation would use audio processing libraries
-        return audio
-
-
-
-
