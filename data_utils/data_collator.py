@@ -299,8 +299,8 @@ metric = evaluate.load("wer")
 
 
 # ORIGINAL WER FUNCTION
-
-def compute_wer(pred, prompts=None):
+def compute_wer(pred):
+# def compute_wer(pred, prompts):
     pred_ids = pred.predictions
     label_ids = pred.label_ids
     normalizer = BasicTextNormalizer()
@@ -317,10 +317,10 @@ def compute_wer(pred, prompts=None):
     cutted_label_ids = []
     cutted_pred_ids = []
 
-    if len(prompts) != 0:
-        for i in tqdm(range(0, len(pred_ids))):
-            cutted_pred_ids.append(pred_ids[i][len(prompts[i][0])+1:])
-            cutted_label_ids.append(label_ids[i][len(prompts[i][0])+1:])
+    # if len(prompts) != 0:
+    #     for i in tqdm(range(0, len(pred_ids))):
+    #         cutted_pred_ids.append(pred_ids[i][len(prompts[i][0])+1:])
+    #         cutted_label_ids.append(label_ids[i][len(prompts[i][0])+1:])
 
     for i in tqdm(range(0, len(cutted_pred_ids), batch_size)):
         batch_pred_ids = cutted_pred_ids[i:i + batch_size]
