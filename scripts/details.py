@@ -13,8 +13,6 @@ import sys
 from jiwer import wer
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from models.whisper_medical import WhisperMedicalForConditionalGeneration
-
 from data_utils.data_loader import PromptWhisperDataset
 from data_utils.data_collator import DataCollatorSpeechS2SWhitPadding, compute_wer
 
@@ -57,59 +55,31 @@ if __name__ == "__main__":
     data_collator = DataCollatorSpeechS2SWhitPadding(processor=processor)
     
     # "/kaggle/input/medical-syn-med-test/medical-united-syn-med-test"
-    data_root = "/kaggle/input"
-    data_dir = "medical-syn-med-test/medical-united-syn-med-test"
+    data_root = os.path.abspath("data")
+    data_dir = "medical-united-syn-med-test"
     
     print("Starting loading data!")
-    data_train = PromptWhisperDataset(base_path=os.path.join(data_root,data_dir), phase='train', feature_extractor=feature_extractor, audio_type=".mp3", tokenizer=tokenizer, prompt=args.prompt, random=args.random)
-    data_eval = PromptWhisperDataset(base_path=os.path.join(data_root,data_dir), phase='dev', feature_extractor=feature_extractor, audio_type=".mp3", tokenizer=tokenizer, prompt=args.prompt, basic=args.basic)
     data_test = PromptWhisperDataset(base_path=os.path.join(data_root,data_dir), phase='test', feature_extractor=feature_extractor, audio_type=".mp3", tokenizer=tokenizer, prompt=args.prompt, basic=args.basic)    
-    
-    model = WhisperMedicalForConditionalGeneration(model_id="openai/whisper-base", freeze_encoder=False)
-    
-    model.config.forced_decoder_ids = None
-    model.config.suppress_tokens = []
-    
-    root_path = "results/"
-    os.makedirs(os.path.join(root_path), exist_ok=True)
-    
-    training_args = Seq2SeqTrainingArguments(
-        output_dir=os.path.join(root_path, "models"),
-        per_device_train_batch_size=1,
-        per_device_eval_batch_size=1,
-        predict_with_generate=True,
-        generation_max_length=225,
-        remove_unused_columns=False,
-        gradient_accumulation_steps=8,
-        # evaluation_strategy="epoch",
-        save_strategy="epoch",
-        logging_strategy="epoch",
-        learning_rate=1e-5,
-        num_train_epochs=10,
-        weight_decay=0.01,
-        warmup_steps=500,
-        # save_total_limit=3,
-        # load_best_model_at_end=True,
-        report_to = []
-    )
-    
-    trainer = Seq2SeqTrainer(
-        args=training_args,
-        model=model,
-        train_dataset=data_train,
-        eval_dataset=data_eval,
-        data_collator=data_collator,
-        tokenizer=processor.feature_extractor,
-        compute_metrics=compute_wer,
-    )
 
-    if (len(data_test) == 0):
-        print("No test data found!")
-        exit(0)
-    print("length of test data: ", len(data_test))
+    print(len(data_test))    
+    sample = data_test[0]
 
-    print("Starting evaluation!")
-    result = trainer.evaluate(data_test)
-    print(result)
+    print("Input features shape:", sample["input_features"].shape)
+    print("Input features dtype:", sample["input_features"].dtype)
+    print("Input feature length:", sample["input_features"].shape[1])
+    print("Input features:", sample["input_features"])
+    print("Labels shape:", sample["labels"].shape)
+    print("Labels:", sample["labels"])
+    print("Prompt:", sample["prompt"])    
     
+    label_ids = sample["labels"].tolist()
+    
+    tokens = tokenizer.convert_ids_to_tokens(label_ids)
+    print(tokens)
+
+    
+    # model = WhisperForConditionalGeneration.from_pretrained(f'openai/whisper-base.en')
+    
+    # model.config.forced_decoder_ids = None
+    # model.config.suppress_tokens = []
     

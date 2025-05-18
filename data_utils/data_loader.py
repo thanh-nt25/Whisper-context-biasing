@@ -73,7 +73,8 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
         self.tokenizer = tokenizer
 
     def _initialize_prompt_pool(self):
-        # Walk through the directory structure to build the prompt pool
+        # Walk through the directory structure va lay tat ca prompt trong json data => co the thay the bang lay 
+        # prompt trong file json metadata
         for root, dirs, files in os.walk(os.path.join(self.base_path, self.phase)):
             json_files = [f for f in files if f.endswith('.json')]
             for json_file_name in json_files:
@@ -86,11 +87,12 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
 
     def _load_data(self):
         # Walk through the directory structure
+        print("Base path:", self.base_path)
         for root, dirs, files in os.walk(os.path.join(self.base_path, self.phase)):
             wav_files = [f for f in files if f.endswith(f'{self.audio_type}')]
             json_files = [f for f in files if f.endswith('.json')]
             for wav_file in wav_files:
-                base_name = os.path.splitext(wav_file)[0]
+                base_name = os.path.splitext(wav_file)[0] # Remove the file extension
                 json_file_name = f"{base_name}.json"
                 if json_file_name in json_files:
                     json_file_path = os.path.join(root, json_file_name)
@@ -99,7 +101,11 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                         json_data = json.load(json_file)
                         text = json_data.get("text", "")
                         prompt = json_data.get("prompt", "")
-                        random_prompt = random.choice(self.prompt_pool) if self.prompt_pool else ""
+                        #random_prompt = random.choice(self.prompt_pool) if self.prompt_pool else ""
+                        if self.prompt_pool: # truyen vao tu args
+                            random_prompt = random.choice(self.prompt_pool)
+                        else:
+                            random_prompt = ""
                         basic = json_data.get("basic", "")
                     self.data.append([os.path.join(root, wav_file),
                         prompt,
@@ -110,8 +116,10 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.data)
-    
+      
+    # ham thay cho goi index
     def __getitem__(self, id):
+      # tra ve 5 phan tu goc
       audio_path, prompt, random_prompt, basic_prompt, raw_text = self.data[id]
       try:
           # Load and process audio
