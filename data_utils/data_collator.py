@@ -134,7 +134,7 @@ class DataCollatorSpeechS2SWhitPadding:
         ]
         batch = self.processor.feature_extractor.pad(
             input_features, return_tensors="pt"
-        ).to(device)
+        )
 
         if features[0]["prompt"].numel() > 0:
             prompt_features = [{"input_ids": feature["prompt"]} for feature in features]
@@ -158,7 +158,7 @@ class DataCollatorSpeechS2SWhitPadding:
 
             labels_batch = self.processor.tokenizer.pad(
                 combined_feature, return_tensors="pt"
-            ).to(device)
+            )
 
             labels = labels_batch["input_ids"].masked_fill(
                 labels_batch.attention_mask.ne(1), -100
@@ -195,7 +195,7 @@ class DataCollatorSpeechS2SWhitPadding:
             label_features = [{"input_ids": feature["labels"]} for feature in features]
             labels_batch = self.processor.tokenizer.pad(
                 label_features, return_tensors="pt"
-            ).to(device)
+            )
 
             labels = labels_batch["input_ids"].masked_fill(
                 labels_batch.attention_mask.ne(1), -100
