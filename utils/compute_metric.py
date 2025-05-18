@@ -1,4 +1,4 @@
-from transformers_prompt import WhisperTokenizer
+from transformers import WhisperTokenizer
 import evaluate
 from tqdm import tqdm
 
