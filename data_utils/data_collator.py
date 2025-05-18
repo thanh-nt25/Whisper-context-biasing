@@ -314,17 +314,17 @@ def compute_wer(pred):
     print("\n\nDone inference!")
     print("Start decoding and calculating WER...")
 
-    cutted_label_ids = []
-    cutted_pred_ids = []
+    # cutted_label_ids = []
+    # cutted_pred_ids = []
 
     # if len(prompts) != 0:
     #     for i in tqdm(range(0, len(pred_ids))):
     #         cutted_pred_ids.append(pred_ids[i][len(prompts[i][0])+1:])
     #         cutted_label_ids.append(label_ids[i][len(prompts[i][0])+1:])
 
-    for i in tqdm(range(0, len(cutted_pred_ids), batch_size)):
-        batch_pred_ids = cutted_pred_ids[i:i + batch_size]
-        batch_label_ids = cutted_label_ids[i:i + batch_size]
+    for i in tqdm(range(0, len(pred_ids), batch_size)):
+        batch_pred_ids = pred_ids[i:i + batch_size]
+        batch_label_ids = label_ids[i:i + batch_size]
 
         pre_strs = tokenizer.batch_decode(batch_pred_ids, skip_special_tokens=True)
         label_strs = tokenizer.batch_decode(batch_label_ids, skip_special_tokens=True)
