@@ -185,88 +185,6 @@ class WhisperMedicalPreTrainedModel(PreTrainedModel):
         return input_lengths
 
 
-class MedicalAdapter(nn.Module):
-    """
-    Medical-specific adapter for Whisper model to adapt to medical domain
-    """
-    def __init__(
-        self,
-        config=None,
-        d_model=768,
-        bottleneck=None,
-        dropout=0.0,
-        init_option="lora",
-        adapter_scalar="1.0",
-        adapter_layernorm_option="none"
-    ):
-        super().__init__()
-        self.n_embd = config.d_model if d_model is None else d_model
-        self.down_size = config.attn_bn if bottleneck is None else bottleneck
-
-        # Medical adaptation parameters
-        self.adapter_layernorm_option = adapter_layernorm_option
-
-        self.adapter_layer_norm_before = None
-        if adapter_layernorm_option == "in" or adapter_layernorm_option == "out":
-            self.adapter_layer_norm_before = nn.LayerNorm(self.n_embd)
-
-        if adapter_scalar == "learnable_scalar":
-            self.scale = nn.Parameter(torch.ones(1))
-        else:
-            self.scale = float(adapter_scalar)
-
-        # Medical domain adaptation layers
-        self.down_proj = nn.Linear(self.n_embd, self.down_size)
-        self.non_linear_func = nn.ReLU()
-        self.up_proj = nn.Linear(self.down_size, self.n_embd)
-
-        # Medical-specific batch normalization
-        self.medical_batch_norm = nn.BatchNorm1d(self.n_embd)
-        
-        self.dropout = dropout
-        if init_option == "bert":
-            raise NotImplementedError
-        elif init_option == "lora":
-            with torch.no_grad():
-                nn.init.kaiming_uniform_(self.down_proj.weight, a=math.sqrt(5))
-                nn.init.zeros_(self.up_proj.weight)
-                nn.init.zeros_(self.down_proj.bias)
-                nn.init.zeros_(self.up_proj.bias)
-
-    def forward(self, x, add_residual=True, residual=None):
-        residual = x if residual is None else residual
-        
-        # Apply medical-specific normalization
-        if self.adapter_layernorm_option == 'in':
-            x = self.adapter_layer_norm_before(x)
-        
-        # Medical domain adaptation
-        down = self.down_proj(x)
-        down = self.non_linear_func(down)
-        down = nn.functional.dropout(down, p=self.dropout, training=self.training)
-        up = self.up_proj(down)
-        
-        # Apply medical-specific scaling
-        up = up * self.scale
-
-        # Medical domain batch normalization
-        if len(up.shape) == 3:  # (batch, seq_len, hidden)
-            batch_size, seq_len, hidden_size = up.shape
-            up = up.transpose(1, 2)  # (batch, hidden, seq_len)
-            up = self.medical_batch_norm(up)
-            up = up.transpose(1, 2)  # back to (batch, seq_len, hidden)
-
-        if self.adapter_layernorm_option == 'out':
-            up = self.adapter_layer_norm_before(up)
-
-        if add_residual:
-            output = up + residual
-        else:
-            output = up
-
-        return output
-
-
 class WhisperMedicalEncoderLayer(nn.Module):
     def __init__(self, config: WhisperConfig):
         super().__init__()
@@ -286,23 +204,6 @@ class WhisperMedicalEncoderLayer(nn.Module):
         self.fc2 = nn.Linear(config.encoder_ffn_dim, self.embed_dim)
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
         
-        # Medical adaptation layers
-        # self.medical_adapter_1 = MedicalAdapter(
-        #     config, 
-        #     d_model=self.embed_dim,
-        #     dropout=0.1, 
-        #     bottleneck=256, 
-        #     adapter_scalar=0.1
-        # )
-        
-        # self.medical_adapter_2 = MedicalAdapter(
-        #     config, 
-        #     d_model=self.embed_dim,
-        #     dropout=0.1, 
-        #     bottleneck=256, 
-        #     adapter_scalar=0.1
-        # )
-
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -422,24 +323,6 @@ class WhisperMedicalDecoderLayer(nn.Module):
         output_attentions: Optional[bool] = False,
         use_cache: Optional[bool] = True,
     ) -> torch.Tensor:
-        """
-        Args:
-            hidden_states (`torch.FloatTensor`): input to the layer of shape `(batch, seq_len, embed_dim)`
-            attention_mask (`torch.FloatTensor`): attention mask of size
-                `(batch, 1, tgt_len, src_len)` where padding elements are indicated by very large negative values.
-            encoder_hidden_states (`torch.FloatTensor`):
-                cross attention input to the layer of shape `(batch, seq_len, embed_dim)`
-            encoder_attention_mask (`torch.FloatTensor`): encoder attention mask of size
-                `(batch, 1, tgt_len, src_len)` where padding elements are indicated by very large negative values.
-            layer_head_mask (`torch.FloatTensor`): mask for attention heads in a given layer of size
-                `(encoder_attention_heads,)`.
-            cross_attn_layer_head_mask (`torch.FloatTensor`): mask for cross-attention heads in a given layer of
-                size `(decoder_attention_heads,)`.
-            past_key_value (`Tuple(torch.FloatTensor)`): cached past key and value projection states
-            output_attentions (`bool`, *optional*):
-                Whether or not to return the attentions tensors of all attention layers. See `attentions` under
-                returned tensors for more detail.
-        """
         residual = hidden_states
         hidden_states = self.self_attn_layer_norm(hidden_states)
 
@@ -558,32 +441,6 @@ class WhisperMedicalEncoder(WhisperMedicalPreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
-        r"""
-        Args:
-            input_features (`torch.LongTensor` of shape `(batch_size, feature_size, sequence_length)`):
-                Float values of mel features extracted from the raw speech waveform. Raw speech waveform can be
-                obtained by loading a `.flac` or `.wav` audio file into an array of type `List[float]` or a
-                `numpy.ndarray`, *e.g.* via the soundfile library (`pip install soundfile`). To prepare the array into
-                `input_features`, the [`AutoFeatureExtractor`] should be used for extracting the mel features, padding
-                and conversion into a tensor of type `torch.FloatTensor`. See [`~WhisperFeatureExtractor.__call__`]
-            attention_mask (`torch.Tensor`)`, *optional*):
-                Whisper does not support masking of the `input_features`, this argument is preserved for compatibility,
-                but it is not used. By default the silence in the input log mel spectrogram are ignored.
-            head_mask (`torch.Tensor` of shape `(encoder_layers, encoder_attention_heads)`, *optional*):
-                Mask to nullify selected heads of the attention modules. Mask values selected in `[0, 1]`:
-
-                - 1 indicates the head is **not masked**,
-                - 0 indicates the head is **masked**.
-            output_attentions (`bool`, *optional*):
-                Whether or not to return the attentions tensors of all attention layers. See `attentions` under
-                returned tensors for more detail.
-            output_hidden_states (`bool`, *optional*):
-                Whether or not to return the hidden states of all layers. See `hidden_states` under returned tensors
-                for more detail.
-            return_dict (`bool`, *optional*):
-                Whether or not to return a [`~utils.ModelOutput`] instead of a plain tuple.
-        """
-
         expected_seq_length = self.config.max_source_positions * self.conv1.stride[0] * self.conv2.stride[0]
         if input_features.shape[-1] != expected_seq_length:
             raise ValueError(
@@ -713,67 +570,6 @@ class WhisperMedicalDecoder(WhisperMedicalPreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
-        r"""
-        Args:
-            input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`):
-                Indices of input sequence tokens in the vocabulary. Padding will be ignored by default should you
-                provide it.
-
-                Indices can be obtained using [`WhisperTokenizer`]. See [`PreTrainedTokenizer.encode`] and
-                [`PreTrainedTokenizer.__call__`] for details.
-
-                [What are input IDs?](../glossary#input-ids)
-            attention_mask (`torch.Tensor` of shape `(batch_size, sequence_length)`, *optional*):
-                Mask to avoid performing attention on padding token indices. Mask values selected in `[0, 1]`:
-
-                - 1 for tokens that are **not masked**,
-                - 0 for tokens that are **masked**.
-
-                [What are attention masks?](../glossary#attention-mask)
-            encoder_hidden_states (`torch.FloatTensor` of shape `(batch_size, encoder_sequence_length, hidden_size)`, *optional*):
-                Sequence of hidden-states at the output of the last layer of the encoder. Used in the cross-attention
-                of the decoder.
-            head_mask (`torch.Tensor` of shape `(decoder_layers, decoder_attention_heads)`, *optional*):
-                Mask to nullify selected heads of the attention modules. Mask values selected in `[0, 1]`:
-
-                - 1 indicates the head is **not masked**,
-                - 0 indicates the head is **masked**.
-
-            cross_attn_head_mask (`torch.Tensor` of shape `(decoder_layers, decoder_attention_heads)`, *optional*):
-                Mask to nullify selected heads of the attention modules in encoder to avoid performing cross-attention
-                on hidden heads. Mask values selected in `[0, 1]`:
-
-                - 1 indicates the head is **not masked**,
-                - 0 indicates the head is **masked**.
-
-            past_key_values (`tuple(tuple(torch.FloatTensor))`, *optional*, returned when `use_cache=True` is passed or when `config.use_cache=True`):
-                Tuple of `tuple(torch.FloatTensor)` of length `config.n_layers`, with each tuple having 2 tensors of
-                shape `(batch_size, num_heads, sequence_length, embed_size_per_head)`) and 2 additional tensors of
-                shape `(batch_size, num_heads, encoder_sequence_length, embed_size_per_head)`.
-
-                Contains pre-computed hidden-states (key and values in the self-attention blocks and in the
-                cross-attention blocks) that can be used (see `past_key_values` input) to speed up sequential decoding.
-
-                If `past_key_values` are used, the user can optionally input only the last `decoder_input_ids` (those
-                that don't have their past key value states given to this model) of shape `(batch_size, 1)` instead of
-                all `decoder_input_ids` of shape `(batch_size, sequence_length)`.
-            inputs_embeds (`torch.FloatTensor` of
-                shape `(batch_size, sequence_length, hidden_size)`, *optional*): Optionally, instead of passing
-                `input_ids` you can choose to directly pass an embedded representation. This is useful if you want more
-                control over how to convert `input_ids` indices into associated vectors than the model's internal
-                embedding lookup matrix.
-            medical_context (`torch.FloatTensor` of
-                shape `(batch_size, context_length, hidden_size)`, *optional*): Medical domain-specific context
-                embeddings for enhanced medical terminology understanding.
-            output_attentions (`bool`, *optional*):
-                Whether or not to return the attentions tensors of all attention layers. See `attentions` under
-                returned tensors for more detail.
-            output_hidden_states (`bool`, *optional*):
-                Whether or not to return the hidden states of all layers. See `hidden_states` under returned tensors
-                for more detail.
-            return_dict (`bool`, *optional*):
-                Whether or not to return a [`~utils.ModelOutput`] instead of a plain tuple.
-        """
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -1143,39 +939,6 @@ class WhisperMedicalForConditionalGeneration(WhisperMedicalPreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple[torch.Tensor], Seq2SeqLMOutput]:
-        r"""
-        labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
-            Labels for computing the language modeling loss. Indices should either be in `[0, ..., config.vocab_size]`
-            or -100 (see `input_ids` docstring). Tokens with indices set to `-100` are ignored (masked), the loss is
-            only computed for the tokens with labels in `[0, ..., config.vocab_size]`.
-        medical_context (`torch.FloatTensor` of shape `(batch_size, context_length, hidden_size)`, *optional*):
-            Medical domain-specific context embeddings for enhanced medical terminology understanding.
-        medical_labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
-            Medical-specific labels for enhanced medical domain training.
-
-        Returns:
-
-        Example:
-
-        ```python
-        >>> import torch
-        >>> from transformers import AutoProcessor, WhisperMedicalForConditionalGeneration
-        >>> from datasets import load_dataset
-
-        >>> processor = AutoProcessor.from_pretrained("medical-whisper-tiny")
-        >>> model = WhisperMedicalForConditionalGeneration.from_pretrained("medical-whisper-tiny")
-
-        >>> ds = load_dataset("medical-audio-dataset", "clean", split="validation")
-
-        >>> inputs = processor(ds[0]["audio"]["array"], return_tensors="pt")
-        >>> input_features = inputs.input_features
-
-        >>> generated_ids = model.generate(inputs=input_features)
-
-        >>> transcription = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
-        >>> transcription
-        ' The patient presents with acute myocardial infarction and requires immediate intervention.'
-        ```"""
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         if labels is not None:
@@ -1257,156 +1020,6 @@ class WhisperMedicalForConditionalGeneration(WhisperMedicalPreTrainedModel):
         return_dict_in_generate: Optional[bool] = None,
         **kwargs,
     ):
-        """
-        Transcribes or translates passed mel input features to a sequence of token ids.
-
-        <Tip warning={true}>
-
-        Most generation-controlling parameters are set in `generation_config` which, if not passed, will be set to the
-        model's default generation configuration. You can override any `generation_config` by passing the corresponding
-        parameters to generate(), e.g. `.generate(inputs, num_beams=4, do_sample=True)`.
-
-        For an overview of generation strategies and code examples, check out the [following
-        guide](./generation_strategies).
-
-        </Tip>
-
-        Parameters:
-            inputs (`torch.Tensor` of varying shape depending on the modality, *optional*):
-                The sequence used as a prompt for the generation or as model inputs to the encoder. If `None` the
-                method initializes it with `bos_token_id` and a batch size of 1. For decoder-only models `inputs`
-                should of in the format of `input_ids`. For encoder-decoder models *inputs* can represent any of
-                `input_ids`, `input_values`, `input_features`, or `pixel_values`.
-            generation_config (`~generation.GenerationConfig`, *optional*):
-                The generation configuration to be used as base parametrization for the generation call. `**kwargs`
-                passed to generate matching the attributes of `generation_config` will override them. If
-                `generation_config` is not provided, the default will be used, which had the following loading
-                priority: 1) from the `generation_config.json` model file, if it exists; 2) from the model
-                configuration. Please note that unspecified parameters will inherit [`~generation.GenerationConfig`]'s
-                default values, whose documentation should be checked to parameterize generation.
-            logits_processor (`LogitsProcessorList`, *optional*):
-                Custom logits processors that complement the default logits processors built from arguments and
-                generation config. If a logit processor is passed that is already created with the arguments or a
-                generation config an error is thrown. This feature is intended for advanced users.
-            stopping_criteria (`StoppingCriteriaList`, *optional*):
-                Custom stopping criteria that complement the default stopping criteria built from arguments and a
-                generation config. If a stopping criteria is passed that is already created with the arguments or a
-                generation config an error is thrown. This feature is intended for advanced users.
-            prefix_allowed_tokens_fn (`Callable[[int, torch.Tensor], List[int]]`, *optional*):
-                If provided, this function constraints the beam search to allowed tokens only at each step. If not
-                provided no constraint is applied. This function takes 2 arguments: the batch ID `batch_id` and
-                `input_ids`. It has to return a list with the allowed tokens for the next generation step conditioned
-                on the batch ID `batch_id` and the previously generated tokens `inputs_ids`. This argument is useful
-                for constrained generation conditioned on the prefix, as described in [Autoregressive Entity
-                Retrieval](https://arxiv.org/abs/2010.00904).
-            synced_gpus (`bool`, *optional*, defaults to `False`):
-                Whether to continue running the while loop until max_length (needed for ZeRO stage 3)
-            return_timestamps (`bool`, *optional*):
-                Whether to return the timestamps with the text. This enables the `WhisperTimestampsLogitsProcessor`.
-            task (`str`, *optional*):
-                Task to use for generation, either "translate" or "transcribe". The `model.config.forced_decoder_ids`
-                will be updated accordingly.
-            language (`str`, *optional*):
-                Language token to use for generation, can be either in the form of `<|en|>`, `en` or `english`. You can
-                find all the possible language tokens in the `model.generation_config.lang_to_id` dictionary.
-            is_multilingual (`bool`, *optional*):
-                Whether or not the model is multilingual.
-            prompt_ids (`torch.Tensor`, *optional*):
-                Rank-1 tensor of token IDs created by passing text to [`~WhisperProcessor.get_prompt_ids`] that is
-                provided as a prompt to each chunk. This can be used to provide or "prompt-engineer" a context for
-                transcription, e.g. custom vocabularies or proper nouns to make it more likely to predict those words
-                correctly. It cannot be used in conjunction with `decoder_start_token_id` as it overwrites this value.
-            return_token_timestamps (`bool`, *optional*):
-                Whether to return token-level timestamps with the text. This can be used with or without the
-                `return_timestamps` option. To get word-level timestamps, use the tokenizer to group the tokens into
-                words.
-            return_segments (`bool`, *optional*, defaults to `False`):
-                Whether to additionally return a list of all segments. Note that this option can only be enabled
-                when doing long-form transcription.
-            attention_mask (`torch.Tensor`, *optional*):
-                `attention_mask` needs to be passed when doing long-form transcription using a batch size > 1.
-            time_precision (`int`, *optional*, defaults to 0.02):
-                The duration of output token in seconds. *E.g.* 0.02 means that a generated token on average accounts
-                for 20 ms.
-            return_dict_in_generate (`bool`, *optional*, defaults to `False`):
-                Whether or not to return a [`~utils.ModelOutput`] instead of just returning the generated tokens.
-                Note that when doing long-form transcription, `return_dict_in_generate` can only be enabled when
-                `return_segments` is set True. In this case the generation outputs of each segment is added to each
-                segment.
-            kwargs (`Dict[str, Any]`, *optional*):
-                Ad hoc parametrization of `generate_config` and/or additional model-specific kwargs that will be
-                forwarded to the `forward` function of the model. If the model is an encoder-decoder model, encoder
-                specific kwargs should not be prefixed and decoder specific kwargs should be prefixed with *decoder_*.
-
-        Return:
-            [`~utils.ModelOutput`] or `torch.LongTensor` or `Dict[str, Any]`: A [`~utils.ModelOutput`] (if `return_dict_in_generate=True`
-            or when `config.return_dict_in_generate=True`) or a `torch.FloatTensor` or a dict of segments when `return_segments=True`.
-
-                If the passed input is > 30 seconds / > 3000 mel input features and `return_segments=True` then a dictionary of generated sequence ids, called `sequences` and a list of each generated segment is returned.
-
-                else if the passed input is <= 30 seconds / >= 3000 mel input features, the possible [`~utils.ModelOutput`] types are:
-
-                    - [`~generation.GenerateEncoderDecoderOutput`],
-                    - [`~generation.GenerateBeamEncoderDecoderOutput`]
-
-                else only the generated output sequence ids are returned.
-
-        Example:
-
-        - *Longform transcription*: To transcribe or translate audios longer than 30 seconds, process the audio files without truncation and pass all mel features at once to generate.
-
-        ```python
-        >>> import torch
-        >>> from transformers import AutoProcessor, WhisperForConditionalGeneration
-        >>> from datasets import load_dataset, Audio
-
-        >>> processor = AutoProcessor.from_pretrained("openai/whisper-tiny.en")
-        >>> model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-tiny.en")
-        >>> model.cuda()
-
-        >>> # load audios > 30 seconds
-        >>> ds = load_dataset("distil-whisper/meanwhile", "default")["test"]
-        >>> # resample to 16kHz
-        >>> ds = ds.cast_column("audio", Audio(sampling_rate=16000))
-        >>> # take first 8 audios and retrieve array
-        >>> audio = ds[:8]["audio"]
-        >>> audio = [x["array"] for x in audio]
-
-        >>> # make sure to NOT truncate the input audio, to return the `attention_mask` and to pad to the longest audio
-        >>> inputs = processor(audio, return_tensors="pt", truncation=False, padding="longest", return_attention_mask=True, sampling_rate=16_000)
-        >>> inputs = inputs.to("cuda", torch.float32)
-
-        >>> # transcribe audio to ids
-        >>> generated_ids = model.generate(**inputs)
-
-        >>> transcription = processor.batch_decode(generated_ids, skip_special_tokens=True)
-        >>> transcription[0]
-        ' Folks, if you watch the show, you know, I spent a lot of time right over there. Patiently and astutely scrutinizing the boxwood and mahogany chest set of the day's biggest stories developing the central headline pawns, definitely maneuvering an oso topical night to F6, fainting a classic Sicilian, nade door variation on the news, all the while seeing eight moves deep and patiently marshalling the latest press releases into a fisher's shows in Lip Nitsky attack that culminates in the elegant lethal slow-played, all-passant checkmate that is my nightly monologue. But sometimes, sometimes, folks, I. CHEERING AND APPLAUSE Sometimes I startle away, cubside down in the monkey bars of a condemned playground on a super fun site. Get all hept up on goofballs. Rummage that were discarded tag bag of defective toys. Yank out a fist bowl of disembodied doll limbs, toss them on a stained kid's place mat from a defunct dennies. set up a table inside a rusty cargo container down by the Wharf and challenged toothless drifters to the godless bughouse blitz of tournament that is my segment. Meanwhile!'
-        ```
-
-        - *Shortform transcription*: If passed mel input features are < 30 seconds, the whole audio will be transcribed with a single call to generate.
-
-        ```python
-        >>> import torch
-        >>> from transformers import AutoProcessor, WhisperForConditionalGeneration
-        >>> from datasets import load_dataset
-
-        >>> processor = AutoProcessor.from_pretrained("openai/whisper-tiny.en")
-        >>> model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-tiny.en")
-
-        >>> ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
-
-        >>> inputs = processor(ds[0]["audio"]["array"], return_tensors="pt")
-        >>> input_features = inputs.input_features
-
-        >>> generated_ids = model.generate(inputs=input_features)
-
-        >>> transcription = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
-        >>> transcription
-        ' Mr. Quilter is the apostle of the middle classes, and we are glad to welcome his gospel.'
-        ```
-
-        """
 
         if "inputs" in kwargs:
             input_features = kwargs.pop("inputs")
