@@ -1225,7 +1225,7 @@ class WhisperMedicalForConditionalGeneration(WhisperMedicalPreTrainedModel):
 
         return Seq2SeqLMOutput(
             loss=loss,
-            logits=final_logits,
+            logits=lm_logits,
             past_key_values=outputs.past_key_values,
             decoder_hidden_states=outputs.decoder_hidden_states,
             decoder_attentions=outputs.decoder_attentions,
