@@ -145,7 +145,7 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
 
               return {
                   "input_features": processed_audio,
-                  "prompt": encoded_prompt,  # Including the prompt in the output
+                  "prompt": encoded_prompt,  # Not include
                   "labels": encoded_labels
               }
           else:

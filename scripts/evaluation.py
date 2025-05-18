@@ -44,7 +44,7 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Device:", device)
     
-    args.prompt = False
+    args.prompt = True
     args.random = False
     args.basic = False
     
