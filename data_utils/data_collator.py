@@ -210,7 +210,7 @@ class DataCollatorSpeechS2SWhitPadding:
                 labels = labels[:, 1:]
 
             batch["labels"] = labels
-            batch["prompts"] = None
+            # batch["prompts"] = None
 
         return batch
 
