@@ -14,9 +14,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def prepare_dataset(batch):
-    # audio를 16kHZ로 load
     audio = batch["audio"]
-    # padding & trucation 적용,log-mel spectrogram으로 변환
     batch["input_features"] = feature_extractor(
         audio["array"], sampling_rate=audio["sampling_rate"]
     ).input_features[0]

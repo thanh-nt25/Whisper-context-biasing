@@ -1,166 +1,120 @@
 """
-Script huấn luyện mô hình Whisper medical
+Script đánh giá mô hình Whisper medical
 """
 
 import argparse
 import os
-import sys
+import librosa
+import torch
+import gc
 import json
-import random
 from pathlib import Path
+import sys
+from jiwer import wer
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from models.whisper_medical import WhisperMedicalForConditionalGeneration
 
-sys.path.append(str(Path(__file__).parent.parent.absolute()))
-from models.whisper_medical import WhisperMedical
-from data_utils.data_loader import WhisperMedicalDataset, WhisperDataCollator
-from trainers.medical_trainer import WhisperMedicalTrainer
-from data_utils.data_processor import load_bias_words, load_jsonl, create_prompt
-from utils.medical_utils import generate_random_prompts
-from config.config import (
-    MODEL_SAVE_DIR, TRAIN_JSONL, DEV_JSONL, TRAIN_AUDIO_DIR, DEV_AUDIO_DIR, 
-    BIAS_WORDS_FILE, BATCH_SIZE, GRADIENT_ACCUMULATION_STEPS,
-    LEARNING_RATE, NUM_EPOCHS, FP16,SAVE_STEPS, EVAL_STEPS, LOGGING_STEPS,
-    RANDOM_CONTEXT_PROB, RANDOM_CONTEXTS_SIZE, WEIGHT_FACTORS
+from data_utils.data_loader import PromptWhisperDataset
+from data_utils.data_collator import DataCollatorSpeechS2SWhitPadding
+
+from utils.compute_metric import compute_wer
+
+from transformers import (
+    Seq2SeqTrainingArguments,
+    Seq2SeqTrainer,
+    WhisperForConditionalGeneration,
+    GenerationConfig,
+    WhisperFeatureExtractor,
+    WhisperTokenizer,
+    WhisperProcessor,
 )
-from transformers import TrainingArguments
-from utils.evaluation import compute_metrics_whisper_with_prompt
 
-
-def main():
-    parser = argparse.ArgumentParser(description="Fine-tune Whisper model cho y tế")
-    parser.add_argument("--train_jsonl", type=str, default=TRAIN_JSONL, help="Đường dẫn đến file JSONL train data")
-    parser.add_argument("--dev_jsonl", type=str, default=DEV_JSONL, help="Đường dẫn đến file JSONL validation data")
-    parser.add_argument("--train_audio_dir", type=str, default=TRAIN_AUDIO_DIR, help="Thư mục chứa audio train")
-    parser.add_argument("--dev_audio_dir", type=str, default=DEV_AUDIO_DIR, help="Thư mục chứa audio dev")
-    parser.add_argument("--bias_words_file", type=str, default=BIAS_WORDS_FILE, help="Đường dẫn đến file bias words")
-    parser.add_argument("--output_dir", type=str, default=None, help="Thư mục để lưu mô hình")
-    parser.add_argument("--model_name", type=str, default="whisper-medical", help="Tên mô hình")
-    parser.add_argument("--no_bias_words", action="store_true", help="Không sử dụng bias words")
-    parser.add_argument("--no_weighted_loss", action="store_true", help="Không sử dụng weighted loss")
-    parser.add_argument("--learning_rate", type=float, default=LEARNING_RATE, help="Learning rate")
-    parser.add_argument("--batch_size", type=int, default=BATCH_SIZE, help="Batch size")
-    parser.add_argument("--num_epochs", type=int, default=NUM_EPOCHS, help="Số epochs")
-    parser.add_argument("--hf_token", type=str, default="", help="Hugging face token")
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Đánh giá mô hình Whisper medical")
+    # parser.add_argument("--model_dir", type=str, required=True, help="Thư mục chứa mô hình đã huấn luyện")
+    # parser.add_argument("--test_jsonl", type=str, required=True, help="Đường dẫn đến file JSONL test data")
+    # parser.add_argument("--test_audio_dir", type=str, required=True, help="Thư mục chứa audio test")
+    # parser.add_argument("--bias_words_file", type=str, required=True, help="Đường dẫn đến file bias words")
+    parser.add_argument("--output", type=str, default=None, help="Đường dẫn đến file kết quả đánh giá")
+    parser.add_argument("--compare_baseline", action="store_true", help="So sánh với Whisper cơ bản")
+    parser.add_argument("--debug_mode", action="store_true", help="Chạy ở chế độ debug chi tiết")
+    
+    parser.add_argument("--prompt", action="store_true", help="whether to use prompt to decoder")
+    parser.add_argument("--random", action="store_true", help="context perturbation")
     
     args = parser.parse_args()
     
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("Device:", device)
     
-    if args.output_dir is None:
-        args.output_dir = os.path.join(MODEL_SAVE_DIR, args.model_name)
+    args.prompt = True
+    args.random = True # 5% random prompt
+    args.basic = False
     
-    os.makedirs(args.output_dir, exist_ok=True)
-    os.makedirs(MODEL_SAVE_DIR, exist_ok=True)
+    feature_extractor = WhisperFeatureExtractor.from_pretrained(f'openai/whisper-base.en')
+    tokenizer = WhisperTokenizer.from_pretrained(f'openai/whisper-base.en', language='en', task='transcribe')
+    processor = WhisperProcessor.from_pretrained(f'openai/whisper-base.en', language='en', task='transcribe')
     
+    data_collator = DataCollatorSpeechS2SWhitPadding(processor=processor)
     
-    whisper_medical = WhisperMedical()
+    # "/kaggle/input/medical-syn-med-test/medical-united-syn-med-test"
+    data_root = "/kaggle/input"
+    data_dir = "medical-syn-med-test/medical-united-syn-med-test"
     
+    print("Starting loading data!")
+    data_train = PromptWhisperDataset(base_path=os.path.join(data_root,data_dir), phase='train', feature_extractor=feature_extractor, audio_type=".mp3", tokenizer=tokenizer, prompt=args.prompt, random=args.random)
+    data_eval = PromptWhisperDataset(base_path=os.path.join(data_root,data_dir), phase='dev', feature_extractor=feature_extractor, audio_type=".mp3", tokenizer=tokenizer, prompt=args.prompt, basic=args.basic)
+    data_test = PromptWhisperDataset(base_path=os.path.join(data_root,data_dir), phase='test', feature_extractor=feature_extractor, audio_type=".mp3", tokenizer=tokenizer, prompt=args.prompt, basic=args.basic)    
     
-    bias_words_string = None if args.no_bias_words else load_bias_words(args.bias_words_file)
+    model = WhisperMedicalForConditionalGeneration.from_pretrained("openai/whisper-base.en", freeze_encoder=False)
     
+    # model.config.forced_decoder_ids = processor.get_decoder_prompt_ids(
+    #     language="en", task="transcribe"
+    # )
+    model.config.forced_decoder_ids = None
+    model.config.suppress_tokens = []
     
-    train_dataset = WhisperMedicalDataset(
-        args.train_jsonl, 
-        whisper_medical.processor, 
-        args.train_audio_dir,
-        bias_words_string
-    )
+    root_path = "results/"
+    os.makedirs(os.path.join(root_path), exist_ok=True)
     
-    val_dataset = WhisperMedicalDataset(
-        args.dev_jsonl, 
-        whisper_medical.processor, 
-        args.dev_audio_dir,
-        bias_words_string
-    )
-    
-    
-    medical_terms_mapping = None
-    if not args.no_weighted_loss:
-        medical_terms_mapping = whisper_medical.create_medical_terms_mapping(args.bias_words_file)
-    
-    
-    random_contexts = generate_random_prompts(
-        args.train_jsonl, 
-        args.bias_words_file, 
-        RANDOM_CONTEXTS_SIZE
-    )
-    
-    
-    training_config = {
-        "train_jsonl": args.train_jsonl,
-        "dev_jsonl": args.dev_jsonl,
-        "train_audio_dir": args.train_audio_dir,
-        "dev_audio_dir": args.dev_audio_dir,
-        "bias_words_file": args.bias_words_file,
-        "no_bias_words": args.no_bias_words,
-        "no_weighted_loss": args.no_weighted_loss,
-        "learning_rate": args.learning_rate,
-        "batch_size": args.batch_size,
-        "num_epochs": args.num_epochs,
-        "use_context_perturbation": True,
-        "random_context_prob": RANDOM_CONTEXT_PROB,
-        "weight_factors": WEIGHT_FACTORS
-    }
-    
-    with open(os.path.join(args.output_dir, "training_config.json"), "w") as f:
-        json.dump(training_config, f, indent=2)
-    
-    # eval_step = int((34358 // 2) // args.batch_size)
-    # log_step = int((34358 // 50) // args.batch_size)
-    # print(f"eval_step: {eval_step}, log_step: {log_step}")
-    
-    training_args = TrainingArguments(
-        push_to_hub=True,
-        hub_model_id="thanh-nt25/whisper-bias-medical-2",
-        hub_token=args.hf_token,
-        output_dir=args.output_dir,
-        save_strategy="steps",
-        per_device_train_batch_size=args.batch_size,
-        per_device_eval_batch_size=2,
-        eval_accumulation_steps=4,
-        gradient_checkpointing=True,
-        gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
-        learning_rate=args.learning_rate,
-        num_train_epochs=args.num_epochs,
-        fp16=True,
-        save_steps=SAVE_STEPS,
-        eval_steps=EVAL_STEPS,
-        logging_steps=LOGGING_STEPS,
-        eval_strategy="steps",
-        load_best_model_at_end=True,
-        save_total_limit=3,
+    training_args = Seq2SeqTrainingArguments(
+        output_dir=os.path.join(root_path, "models"),
+        per_device_train_batch_size=1,
+        per_device_eval_batch_size=1,
+        predict_with_generate=True,
+        generation_max_length=225,
         remove_unused_columns=False,
-        report_to=["wandb"],
-        run_name="whisper-medical-biasing-2",
-        dataloader_num_workers=4,
+        gradient_accumulation_steps=8,
+        # evaluation_strategy="epoch",
+        save_strategy="epoch",
+        logging_strategy="epoch",
+        learning_rate=1e-5,
+        num_train_epochs=10,
+        weight_decay=0.01,
+        warmup_steps=500,
+        # save_total_limit=3,
+        # load_best_model_at_end=True,
+        report_to = []
     )
     
-    
-    trainer = WhisperMedicalTrainer(
-        random_context_prob=RANDOM_CONTEXT_PROB,
-        random_contexts=random_contexts,
-        medical_terms_mapping=medical_terms_mapping,
-        weight_factors=WEIGHT_FACTORS,
-        model=whisper_medical.model,
+    trainer = Seq2SeqTrainer(
         args=training_args,
-        train_dataset=train_dataset,
-        eval_dataset=val_dataset,
-        data_collator=WhisperDataCollator(whisper_medical.processor),
-        processing_class=whisper_medical.processor,
-        compute_metrics=lambda eval_preds: compute_metrics_whisper_with_prompt(
-            eval_preds,
-            tokenizer=whisper_medical.processor.tokenizer,
-            prompt_ids_list=[x["prompt_ids"].tolist() for x in val_dataset]
-        ),
+        model=model,
+        train_dataset=data_train,
+        eval_dataset=data_eval,
+        data_collator=data_collator,
+        tokenizer=processor.feature_extractor,
+        compute_metrics=compute_wer,
     )
-    
-    
-    trainer.train()
-    
-    
-    whisper_medical.model = trainer.model
-    whisper_medical.save(args.output_dir)
-    
-    print(f"Đã hoàn thành huấn luyện và lưu mô hình vào {args.output_dir}")
 
-if __name__ == "__main__":
-    main()
+    if (len(data_test) == 0):
+        print("No test data found!")
+        exit(0)
+    print("length of test data: ", len(data_test))
+
+    print("Starting evaluation!")
+    result = trainer.evaluate(data_test)
+    print(result)
+    
+    

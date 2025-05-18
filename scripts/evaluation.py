@@ -23,7 +23,6 @@ from utils.compute_metric import compute_wer
 from transformers import (
     Seq2SeqTrainingArguments,
     Seq2SeqTrainer,
-    WhisperForConditionalGeneration,
     GenerationConfig,
     WhisperFeatureExtractor,
     WhisperTokenizer,

@@ -1,6 +1,17 @@
-transformers
+transformers==4.39.0
 librosa>=0.10.0
 torch>=2.0.0
 jiwer>=3.0.1
 pandas>=2.0.0
 tqdm>=4.66.0
+tokenizers == 0.15.2
+datasets
+huggingface-hub==0.23.2
+huggingface
+evaluate
+jiwer
+more_itertools
+editdistance
+av
+accelerate == 0.28.0
+tensorboardX
