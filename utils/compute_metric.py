@@ -1,9 +1,7 @@
-# import evaluate
-from transformers import WhisperTokenizer
-from jiwer import wer
+from transformers_prompt import WhisperTokenizer
+import evaluate
 from tqdm import tqdm
 
-import numpy as np
 import os
 
 import re
