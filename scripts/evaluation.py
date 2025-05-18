@@ -65,7 +65,7 @@ if __name__ == "__main__":
     data_eval = PromptWhisperDataset(base_path=os.path.join(data_root,data_dir), phase='dev', feature_extractor=feature_extractor, audio_type=".mp3", tokenizer=tokenizer, prompt=args.prompt, basic=args.basic)
     data_test = PromptWhisperDataset(base_path=os.path.join(data_root,data_dir), phase='test', feature_extractor=feature_extractor, audio_type=".mp3", tokenizer=tokenizer, prompt=args.prompt, basic=args.basic)    
     
-    model = WhisperMedicalForConditionalGeneration(model_id="openai/whisper-base", freeze_encoder=False)
+    model = WhisperMedicalForConditionalGeneration.from_pretrained("openai/whisper-base", freeze_encoder=False)
     
     model.config.forced_decoder_ids = None
     model.config.suppress_tokens = []
