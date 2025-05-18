@@ -85,9 +85,7 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                         self.prompt_pool.append(prompt)
 
     def _load_data(self):
-        print("base path: ", self.base_path)
         # Walk through the directory structure
-        print("Dir: ", os.path.join(self.base_path, self.phase))
         for root, dirs, files in os.walk(os.path.join(self.base_path, self.phase)):
             wav_files = [f for f in files if f.endswith(f'{self.audio_type}')]
             json_files = [f for f in files if f.endswith('.json')]

@@ -187,7 +187,7 @@ class DataCollatorSpeechS2SWhitPadding:
             ]
 
             # Stack the padded prompts
-            batch["prompts"] = torch.stack(padded_prompts)
+            # batch["prompts"] = torch.stack(padded_prompts)
 
             batch["labels"] = labels
 
