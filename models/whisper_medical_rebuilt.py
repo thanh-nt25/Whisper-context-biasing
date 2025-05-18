@@ -1195,7 +1195,7 @@ class WhisperMedicalForConditionalGeneration(WhisperMedicalPreTrainedModel):
             cross_attn_head_mask=cross_attn_head_mask,
             past_key_values=past_key_values,
             decoder_inputs_embeds=decoder_inputs_embeds,
-            medical_context=medical_context,
+            # medical_context=medical_context,
             use_cache=use_cache,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
