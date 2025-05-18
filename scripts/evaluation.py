@@ -88,6 +88,7 @@ if __name__ == "__main__":
         warmup_steps=500,
         # save_total_limit=3,
         # load_best_model_at_end=True,
+        report_to = []
     )
     
     trainer = Seq2SeqTrainer(

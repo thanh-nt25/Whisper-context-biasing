@@ -310,7 +310,7 @@ def compute_wer(pred):
     label_ids[label_ids == -100] = tokenizer.pad_token_id
     total_wer = 0
     results = []
-    batch_size = 1
+    batch_size = 4
     print("\n\nDone inference!")
     print("Start decoding and calculating WER...")
 
