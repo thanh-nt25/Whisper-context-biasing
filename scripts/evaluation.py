@@ -70,7 +70,7 @@ if __name__ == "__main__":
     
     # model = WhisperMedicalForConditionalGeneration.from_pretrained("openai/whisper-base.en", freeze_encoder=False)
     config = WhisperConfig.from_pretrained("openai/whisper-base.en")
-    model = WhisperMedicalForConditionalGeneration(config, freeze_encoder=False)
+    model = WhisperMedicalForConditionalGeneration(config)
     
     model.config.forced_decoder_ids = None
     model.config.suppress_tokens = []
