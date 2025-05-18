@@ -14,6 +14,7 @@ from jiwer import wer
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.whisper_medical import WhisperMedicalForConditionalGeneration
+from models.whisper_medical_rebuilt import WhisperMedicalForConditionalGenerationRebuilt
 
 from data_utils.data_loader import PromptWhisperDataset
 from data_utils.data_collator import DataCollatorSpeechS2SWhitPadding
@@ -27,6 +28,7 @@ from transformers import (
     WhisperFeatureExtractor,
     WhisperTokenizer,
     WhisperProcessor,
+    WhisperConfig
 )
 
 if __name__ == "__main__":
@@ -66,11 +68,10 @@ if __name__ == "__main__":
     data_eval = PromptWhisperDataset(base_path=os.path.join(data_root,data_dir), phase='dev', feature_extractor=feature_extractor, audio_type=".mp3", tokenizer=tokenizer, prompt=args.prompt, basic=args.basic)
     data_test = PromptWhisperDataset(base_path=os.path.join(data_root,data_dir), phase='test', feature_extractor=feature_extractor, audio_type=".mp3", tokenizer=tokenizer, prompt=args.prompt, basic=args.basic)    
     
-    model = WhisperMedicalForConditionalGeneration.from_pretrained("openai/whisper-base.en", freeze_encoder=False)
+    # model = WhisperMedicalForConditionalGeneration.from_pretrained("openai/whisper-base.en", freeze_encoder=False)
+    config = WhisperConfig.from_pretrained("openai/whisper-base.en")
+    model = WhisperMedicalForConditionalGeneration(config, freeze_encoder=False)
     
-    # model.config.forced_decoder_ids = processor.get_decoder_prompt_ids(
-    #     language="en", task="transcribe"
-    # )
     model.config.forced_decoder_ids = None
     model.config.suppress_tokens = []
     

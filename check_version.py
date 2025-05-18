@@ -1,3 +1,3 @@
 import transformers
-print(transformers.__version__)
-print(transformers.__file__)
+print("\nTranforsmers version: ", transformers.__version__)
+print("Transformers file path: ", transformers.__file__)
