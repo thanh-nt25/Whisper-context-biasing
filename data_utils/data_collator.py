@@ -300,7 +300,7 @@ metric = evaluate.load("wer")
 
 # ORIGINAL WER FUNCTION
 
-def compute_wer(pred, args, prompts):
+def compute_wer(pred, prompts):
     pred_ids = pred.predictions
     label_ids = pred.label_ids
     normalizer = BasicTextNormalizer()
