@@ -10,10 +10,6 @@ class WhisperMedicalForConditionalGeneration:
         self.processor = WhisperProcessor.from_pretrained(model_id, language="en", task="transcribe")
         self.model = WhisperForConditionalGeneration.from_pretrained(model_id)
         
-        # Cấu hình để không sử dụng forced_decoder_ids 
-        self.model.config.forced_decoder_ids = None
-        self.model.config.suppress_tokens = []
-        
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.to(self.device)
         
