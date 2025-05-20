@@ -67,15 +67,10 @@ if __name__ == "__main__":
         processor=processor,
         decoder_start_token_id=tokenizer.convert_tokens_to_ids("<|startoftranscript|>"),
         decoder_prev_token_id=tokenizer.convert_tokens_to_ids("<|startofprev|>"),
-        # decoder_start_token_id=tokenizer.decoder_start_token_id,
-        # decoder_prev_token_id=tokenizer.prev_token_id,
 
     )
     
     # "/kaggle/input/medical-syn-med-test/medical-united-syn-med-test"
-    # data_root = DATA_ROOT
-    # data_dir = DATA_DIR
-    # jsonl_data = JSONL_DATA
     
     print("DATA_ROOT:", args.data_root)
     print("DATA_DIR:", args.data_dir)
@@ -144,8 +139,8 @@ if __name__ == "__main__":
     trainer = Seq2SeqTrainer(
         args=training_args,
         model=model,
-        train_dataset=data_train,
-        eval_dataset=data_eval,
+        # train_dataset=data_train,
+        # eval_dataset=data_eval,
         data_collator=data_collator,
         tokenizer=processor.feature_extractor,
         compute_metrics=compute_wer,
