@@ -115,15 +115,18 @@ def compute_wer(pred):
     #         cutted_label_ids.append(label_ids[i][len(prompts[i][0])+1:])
     
     # cut prompt (dang truoc <SOT>) => luon luon cat duoc ke ca khi ko co prompt
-    for i in tqdm(range(0, len(pred_ids))):
-      label_sot_pos = (label_ids[i] == sot_token_id).nonzero()
-      label_start = label_sot_pos[0].item() + 1 if label_sot_pos.numel() > 0 else 0
+    for i in tqdm(range(len(pred_ids))):
+        # Tìm vị trí <|startoftranscript|> trong label
+        label_sot_pos = (label_ids[i] == sot_token_id).nonzero(as_tuple=False)
+        label_start = label_sot_pos[0][0].item() + 1 if label_sot_pos.numel() > 0 else 0
 
-      pred_sot_pos = (pred_ids[i] == sot_token_id).nonzero()
-      pred_start = pred_sot_pos[0].item() + 1 if pred_sot_pos.numel() > 0 else 0
+        # Tìm vị trí <|startoftranscript|> trong pred
+        pred_sot_pos = (pred_ids[i] == sot_token_id).nonzero(as_tuple=False)
+        pred_start = pred_sot_pos[0][0].item() + 1 if pred_sot_pos.numel() > 0 else 0
 
-      cutted_label_ids.append(label_ids[i][label_start:])
-      cutted_pred_ids.append(pred_ids[i][pred_start:])
+        # Cắt phần sau SOT
+        cutted_label_ids.append(label_ids[i][label_start:])
+        cutted_pred_ids.append(pred_ids[i][pred_start:])
 
       
 
