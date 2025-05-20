@@ -163,7 +163,8 @@ class DataCollatorSpeechSeq2SeqWithPadding:
         # reformat list to dict and set to pytorch format
         batch = self.processor.feature_extractor.pad(
             input_features,
-            padding=self.input_padding,
+            # padding=self.input_padding,
+            padding = "longest",
             return_tensors="pt",
         )
 
