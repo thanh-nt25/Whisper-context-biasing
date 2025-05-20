@@ -169,8 +169,9 @@ class DataCollatorSpeechSeq2SeqWithPadding:
 
         labels_batch = self.processor.tokenizer.pad(
             label_features,
-            max_length=self.max_target_length,
-            padding=self.target_padding,
+            # max_length=self.max_target_length,
+            # padding=self.target_padding,
+            padding = "longest",
             return_tensors="pt",
         )
 
