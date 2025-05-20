@@ -93,7 +93,10 @@ def compute_wer(pred):
     pred_ids = pred.predictions
     label_ids = pred.label_ids
     normalizer = BasicTextNormalizer()
+    
     tokenizer = WhisperTokenizer.from_pretrained(f'openai/whisper-base.en', language='en', task='transcribe')
+    sot_token_id = 20257
+    pad_token_id = 20256
 
     label_ids[label_ids == -100] = tokenizer.pad_token_id
     total_wer = 0
@@ -102,18 +105,31 @@ def compute_wer(pred):
     print("\n\nDone inference!")
     print("Start decoding and calculating WER...")
 
-    # cutted_label_ids = []
-    # cutted_pred_ids = []
+    cutted_label_ids = []
+    cutted_pred_ids = []
 
+    # chinh sua lai ham nay
     # if len(prompts) != 0:
-    #     i la sample, cutted se lay toan bo doan ve sau, prompts o dang truoc
     #     for i in tqdm(range(0, len(pred_ids))):
     #         cutted_pred_ids.append(pred_ids[i][len(prompts[i][0])+1:])
     #         cutted_label_ids.append(label_ids[i][len(prompts[i][0])+1:])
+    
+    # cut prompt (dang truoc <SOT>) => luon luon cat duoc ke ca khi ko co prompt
+    for i in tqdm(range(0, len(pred_ids))):
+      label_sot_pos = (label_ids[i] == sot_token_id).nonzero()
+      label_start = label_sot_pos[0].item() + 1 if label_sot_pos.numel() > 0 else 0
 
-    for i in tqdm(range(0, len(pred_ids), batch_size)):
-        batch_pred_ids = pred_ids[i:i + batch_size]
-        batch_label_ids = label_ids[i:i + batch_size]
+      pred_sot_pos = (pred_ids[i] == sot_token_id).nonzero()
+      pred_start = pred_sot_pos[0].item() + 1 if pred_sot_pos.numel() > 0 else 0
+
+      cutted_label_ids.append(label_ids[i][label_start:])
+      cutted_pred_ids.append(pred_ids[i][pred_start:])
+
+      
+
+    for i in tqdm(range(0, len(cutted_pred_ids), batch_size)):
+        batch_pred_ids = cutted_pred_ids[i:i + batch_size]
+        batch_label_ids = cutted_label_ids[i:i + batch_size]
 
         pre_strs = tokenizer.batch_decode(batch_pred_ids, skip_special_tokens=True)
         label_strs = tokenizer.batch_decode(batch_label_ids, skip_special_tokens=True)
