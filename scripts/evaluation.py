@@ -42,8 +42,11 @@ if __name__ == "__main__":
     # parser.add_argument("--test_audio_dir", type=str, required=True, help="Thư mục chứa audio test")
     # parser.add_argument("--bias_words_file", type=str, required=True, help="Đường dẫn đến file bias words")
     parser.add_argument("--output", type=str, default=None, help="Đường dẫn đến file kết quả đánh giá")
-    parser.add_argument("--compare_baseline", action="store_true", help="So sánh với Whisper cơ bản")
-    parser.add_argument("--debug_mode", action="store_true", help="Chạy ở chế độ debug chi tiết")
+    # parser.add_argument("--compare_baseline", action="store_true", help="So sánh với Whisper cơ bản")
+    # parser.add_argument("--debug_mode", action="store_true", help="Chạy ở chế độ debug chi tiết")
+    parser.add_argument("--data_root", type=str, default=DATA_ROOT, help="Đường dẫn đến file kết quả đánh giá")
+    parser.add_argument("--data_dir", type=str, default=DATA_DIR, help="Đường dẫn đến file kết quả đánh giá")
+    parser.add_argument("--jsonl_data", type=str, default=JSONL_DATA, help="Đường dẫn đến file kết quả đánh giá")
     
     parser.add_argument("--prompt", action="store_true", help="whether to use prompt to decoder")
     parser.add_argument("--random", action="store_true", help="context perturbation")
@@ -70,98 +73,91 @@ if __name__ == "__main__":
     )
     
     # "/kaggle/input/medical-syn-med-test/medical-united-syn-med-test"
-    data_root = DATA_ROOT
-    data_dir = DATA_DIR
-    jsonl_data = JSONL_DATA
+    # data_root = DATA_ROOT
+    # data_dir = DATA_DIR
+    # jsonl_data = JSONL_DATA
     
-    print("DATA_ROOT:", data_root)
-    print("DATA_DIR:", data_dir)
-    print("JSONL_DATA:", jsonl_data)
+    print("DATA_ROOT:", args.data_root)
+    print("DATA_DIR:", args.data_dir)
+    print("JSONL_DATA:", args.jsonl_data)
     
     print("Starting loading data!")
     # data_train = PromptWhisperDataset(base_path=os.path.join(data_root,data_dir), phase='train', feature_extractor=feature_extractor, audio_type=".mp3", tokenizer=tokenizer, prompt=args.prompt, random=args.random)
     # data_eval = PromptWhisperDataset(base_path=os.path.join(data_root,data_dir), phase='dev', feature_extractor=feature_extractor, audio_type=".mp3", tokenizer=tokenizer, prompt=args.prompt, basic=args.basic)
-    data_test = PromptWhisperDataset(base_path=os.path.join(data_root,data_dir), jsonl_data=jsonl_data, phase='test', 
+    data_test = PromptWhisperDataset(base_path=os.path.join(args.data_root, args.data_dir), jsonl_data=args.jsonl_data, phase='test', 
                                      feature_extractor=feature_extractor, audio_type=".mp3", tokenizer=tokenizer, prompt=args.prompt)    
-    sample = data_test[0]
+    # sample = data_test[0]
     
-    print(sample['input_features'])
-    # print(sample['prompt'])
-    print(sample['labels'])
+    # print(sample['input_features'])
+    # print(sample['labels'])
     
-    print(sample['input_features'].shape)
-    # print(sample['prompt'].shape)
-    print(sample['labels'].shape)
+    # print(sample['input_features'].shape)
+    # print(sample['labels'].shape)
     
-    # print("Decoded prompt:", tokenizer.decode(sample['prompt'], skip_special_tokens=False))
-    print("Decoded labels:", tokenizer.decode(sample['labels'], skip_special_tokens=False))
+    # print("Decoded labels:", tokenizer.decode(sample['labels'], skip_special_tokens=False))
     
-    print("pad_token:", tokenizer.pad_token)            # <|endoftext|>
-    print("pad_token_id:", tokenizer.pad_token_id)      # 50256
-    print("eos_token:", tokenizer.eos_token)            # <|endoftext|>
-    print("eos_token_id:", tokenizer.eos_token_id)      # 50256
-    print("tokenizer.decode([50258]): ", tokenizer.decode([50258]))
-    print("tokenizer.decode([50256]): ", tokenizer.decode([50256]))
-    print("tokenizer.decode([50257]): ", tokenizer.decode([50257]))
-    print("tokenizer.decode([50358]): ", tokenizer.decode([50358]))
-    print("tokenizer.decode([50362]): ", tokenizer.decode([50362]))
-    print("tokenizer.decode([0]): ", tokenizer.decode([0]))
-    print("tokenizer.decode([50359]): ", tokenizer.decode([50359]))
-    print("tokenizer.decode([50361]): ", tokenizer.decode([50361]))
-    # print("tokenizer.decoder_input_ids: ", tokenizer.decoder_start_token_id)
-    # print("tokenizer.prev_token_id: ", tokenizer.prev_token_id)
-    # print("tokenizer.encode([<|startofprev|>], add_special_tokens=False): ", tokenizer.encode(["<|startofprev|>"], add_special_tokens=False))
-
+    # print("pad_token:", tokenizer.pad_token)            # <|endoftext|>
+    # print("pad_token_id:", tokenizer.pad_token_id)      # 50256
+    # print("eos_token:", tokenizer.eos_token)            # <|endoftext|>
+    # print("eos_token_id:", tokenizer.eos_token_id)      # 50256
+    # print("tokenizer.decode([50258]): ", tokenizer.decode([50258]))
+    # print("tokenizer.decode([50256]): ", tokenizer.decode([50256]))
+    # print("tokenizer.decode([50257]): ", tokenizer.decode([50257]))
+    # print("tokenizer.decode([50358]): ", tokenizer.decode([50358]))
+    # print("tokenizer.decode([50362]): ", tokenizer.decode([50362]))
+    # print("tokenizer.decode([0]): ", tokenizer.decode([0]))
+    # print("tokenizer.decode([50359]): ", tokenizer.decode([50359]))
+    # print("tokenizer.decode([50361]): ", tokenizer.decode([50361]))
 
 
     # config = WhisperConfig.from_pretrained("openai/whisper-base.en")
     # model = WhisperMedicalForConditionalGeneration(config)
     
-    # model = WhisperMedicalForConditionalGeneration.from_pretrained("openai/whisper-base.en", freeze_encoder=False)
+    model = WhisperMedicalForConditionalGeneration.from_pretrained("openai/whisper-base.en", freeze_encoder=False)
     
-    # model.config.forced_decoder_ids = None
-    # model.config.suppress_tokens = []
+    model.config.forced_decoder_ids = None
+    model.config.suppress_tokens = []
     
-    # root_path = "results/"
-    # os.makedirs(os.path.join(root_path), exist_ok=True)
+    root_path = "results/"
+    os.makedirs(os.path.join(root_path), exist_ok=True)
     
-    # training_args = Seq2SeqTrainingArguments(
-    #     output_dir=os.path.join(root_path, "models"),
-    #     per_device_train_batch_size=1,
-    #     per_device_eval_batch_size=1,
-    #     predict_with_generate=True,
-    #     generation_max_length=225,
-    #     remove_unused_columns=False,
-    #     gradient_accumulation_steps=8,
-    #     # evaluation_strategy="epoch",
-    #     save_strategy="epoch",
-    #     logging_strategy="epoch",
-    #     learning_rate=1e-5,
-    #     num_train_epochs=10,
-    #     weight_decay=0.01,
-    #     warmup_steps=500,
-    #     # save_total_limit=3,
-    #     # load_best_model_at_end=True,
-    #     report_to = []
-    # )
+    training_args = Seq2SeqTrainingArguments(
+        output_dir=os.path.join(root_path, "models"),
+        per_device_train_batch_size=1,
+        per_device_eval_batch_size=1,
+        predict_with_generate=True,
+        generation_max_length=225,
+        remove_unused_columns=False,
+        gradient_accumulation_steps=8,
+        # evaluation_strategy="epoch",
+        save_strategy="epoch",
+        logging_strategy="epoch",
+        learning_rate=1e-5,
+        num_train_epochs=10,
+        weight_decay=0.01,
+        warmup_steps=500,
+        # save_total_limit=3,
+        # load_best_model_at_end=True,
+        report_to = []
+    )
     
-    # trainer = Seq2SeqTrainer(
-    #     args=training_args,
-    #     model=model,
-    #     train_dataset=data_train,
-    #     eval_dataset=data_eval,
-    #     data_collator=data_collator,
-    #     tokenizer=processor.feature_extractor,
-    #     compute_metrics=compute_wer,
-    # )
+    trainer = Seq2SeqTrainer(
+        args=training_args,
+        model=model,
+        train_dataset=data_train,
+        eval_dataset=data_eval,
+        data_collator=data_collator,
+        tokenizer=processor.feature_extractor,
+        compute_metrics=compute_wer,
+    )
 
-    # if (len(data_test) == 0):
-    #     print("No test data found!")
-    #     exit(0)
-    # print("length of test data: ", len(data_test))
+    if (len(data_test) == 0):
+        print("No test data found!")
+        exit(0)
+    print("length of test data: ", len(data_test))
 
-    # print("Starting evaluation!")
-    # result = trainer.evaluate(data_test)
-    # print(result)
+    print("Starting evaluation!")
+    result = trainer.evaluate(data_test)
+    print(result)
     
     
