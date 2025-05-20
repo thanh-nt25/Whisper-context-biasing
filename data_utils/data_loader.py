@@ -91,34 +91,7 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                         self.prompt_pool.append(prompt)
                 except json.JSONDecodeError:
                     print(f"[WARNING] Ignore JSON line: {line.strip()}")
-        
-    # def _load_data(self):
-    #     # Walk through the directory structure
-    #     # print("Base path:", self.base_path)
-    #     for root, dirs, files in os.walk(os.path.join(self.base_path, self.phase)):
-    #         wav_files = [f for f in files if f.endswith(f'{self.audio_type}')]
-    #         json_files = [f for f in files if f.endswith('.json')]
-    #         for wav_file in wav_files:
-    #             base_name = os.path.splitext(wav_file)[0] # Remove the file extension
-    #             json_file_name = f"{base_name}.json"
-    #             if json_file_name in json_files:
-    #                 json_file_path = os.path.join(root, json_file_name)
-    #                 # Open the json file and extract "text" and "prompt"
-    #                 with open(json_file_path, 'r', encoding='utf-8') as json_file:
-    #                     json_data = json.load(json_file)
-    #                     text = json_data.get("text", "")
-    #                     prompt = json_data.get("prompt", "")
-    #                     #random_prompt = random.choice(self.prompt_pool) if self.prompt_pool else ""
-    #                     if self.prompt_pool: # truyen vao tu args
-    #                         random_prompt = random.choice(self.prompt_pool)
-    #                     else:
-    #                         random_prompt = ""
-    #                 self.data.append([os.path.join(root, wav_file),
-    #                     prompt,
-    #                     random_prompt,
-    #                     text
-    #                 ])
-    
+            
     def _load_data(self):
         jsonl_path = os.path.join("data", self.jsonl_data, f"{self.phase}.jsonl")
 
