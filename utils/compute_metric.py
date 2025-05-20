@@ -1,6 +1,7 @@
 from transformers import WhisperTokenizer
 import evaluate
 from tqdm import tqdm
+import torch
 
 import os
 
@@ -116,18 +117,17 @@ def compute_wer(pred):
     
     # cut prompt (dang truoc <SOT>) => luon luon cat duoc ke ca khi ko co prompt
     for i in tqdm(range(len(pred_ids))):
-        # Tìm vị trí <|startoftranscript|> trong label
-        label_sot_pos = (label_ids[i] == sot_token_id).nonzero(as_tuple=False)
-        label_start = label_sot_pos[0][0].item() + 1 if label_sot_pos.numel() > 0 else 0
+        label_tensor = torch.tensor(label_ids[i])
+        pred_tensor = torch.tensor(pred_ids[i])
 
-        # Tìm vị trí <|startoftranscript|> trong pred
-        pred_sot_pos = (pred_ids[i] == sot_token_id).nonzero(as_tuple=False)
-        pred_start = pred_sot_pos[0][0].item() + 1 if pred_sot_pos.numel() > 0 else 0
+        label_pos = (label_tensor == sot_token_id).nonzero(as_tuple=False).flatten()
+        pred_pos = (pred_tensor == sot_token_id).nonzero(as_tuple=False).flatten()
 
-        # Cắt phần sau SOT
-        cutted_label_ids.append(label_ids[i][label_start:])
-        cutted_pred_ids.append(pred_ids[i][pred_start:])
+        label_start = label_pos[0].item() + 1 if len(label_pos) > 0 else 0
+        pred_start = pred_pos[0].item() + 1 if len(pred_pos) > 0 else 0
 
+        cutted_label_ids.append(label_tensor[label_start:])
+        cutted_pred_ids.append(pred_tensor[pred_start:])
       
 
     for i in tqdm(range(0, len(cutted_pred_ids), batch_size)):
