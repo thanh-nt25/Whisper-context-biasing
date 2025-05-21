@@ -128,7 +128,8 @@ if __name__ == "__main__":
         remove_unused_columns=False,
         gradient_accumulation_steps=8,
         # evaluation_strategy="epoch",
-        include_inputs_for_metrics=True,
+        # include_inputs_for_metrics=True,
+        include_for_metrics=["inputs"],
         save_strategy="epoch",
         logging_strategy="epoch",
         learning_rate=1e-5,
@@ -140,7 +141,7 @@ if __name__ == "__main__":
         report_to = []
     )
     
-    trainer = CustomTrainer(
+    trainer = Seq2SeqTrainer(
         args=training_args,
         model=model,
         # train_dataset=data_train,

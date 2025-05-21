@@ -94,18 +94,18 @@ def compute_wer(pred):
     # global trainer  # Đảm bảo trainer được khai báo ở ngoài
     # bias_words_batch = trainer.current_bias_spans if hasattr(trainer, 'current_bias_spans') else []
     # bias_words_batch = pred.inputs["bias_spans"]
-    bias_tensor = pred.inputs["bias_spans"]  # (B, S, L)
-    # print(bias_tensor)
-    # Chuyển thành danh sách để xử lý
-    bias_words_batch = []
-    for spans in bias_tensor:
-        span_list = []
-        for span in spans:
-            token_ids = [i.item() for i in span if i.item() != 50256]
-            if token_ids:
-                span_list.append(token_ids)
-        bias_words_batch.append(span_list)
-    
+    # bias_tensor = pred.inputs["bias_spans"]  # (B, S, L)
+    # # print(bias_tensor)
+    # # Chuyển thành danh sách để xử lý
+    # bias_words_batch = []
+    # for spans in bias_tensor:
+    #     span_list = []
+    #     for span in spans:
+    #         token_ids = [i.item() for i in span if i.item() != 50256]
+    #         if token_ids:
+    #             span_list.append(token_ids)
+        # bias_words_batch.append(span_list)
+    print("eval input: ", pred.inputs[0])
     pred_ids = pred.predictions
     label_ids = pred.label_ids
     normalizer = BasicTextNormalizer()
@@ -175,14 +175,14 @@ def compute_wer(pred):
             f.write(f'Ref : {ref}\n')
             f.write(f'Pred:{pred}\n\n')
 
-    for label, pred, bias_list in zip(label_strs, pre_strs, bias_words_batch):
-      if any(bias.lower() in label.lower() for bias in bias_list):
-          bias_results.append((label, pred))
+    # for label, pred, bias_list in zip(label_strs, pre_strs, bias_words_batch):
+    #   if any(bias.lower() in label.lower() for bias in bias_list):
+    #       bias_results.append((label, pred))
           
-    bias_label_strs = [l for l, _ in bias_results]
-    bias_pred_strs = [p for _, p in bias_results]
+    # bias_label_strs = [l for l, _ in bias_results]
+    # bias_pred_strs = [p for _, p in bias_results]
 
-    bias_wer = 100 * metric.compute(predictions=bias_pred_strs, references=bias_label_strs)
+    # bias_wer = 100 * metric.compute(predictions=bias_pred_strs, references=bias_label_strs)
           
     pre_strs = [pred for _, pred in results]
     label_strs = [ref for ref, _ in results]
@@ -190,8 +190,8 @@ def compute_wer(pred):
     total_wer = 100 * metric.compute(predictions=pre_strs, references=label_strs)
 
     return {
-        'wer': total_wer,
-        'bias_wer': bias_wer
+        'wer': total_wer
+        # 'bias_wer': bias_wer
     }
 
 
