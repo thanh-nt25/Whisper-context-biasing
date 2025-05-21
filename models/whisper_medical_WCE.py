@@ -7,6 +7,8 @@ from transformers.modeling_outputs import Seq2SeqLMOutput
 from typing import Optional, Tuple, Union, List
 from transformers.cache_utils import EncoderDecoderCache
 
+#WhisperForConditionalGenerationWeightCE
+
 class WhisperForConditionalGenerationWeightCE(WhisperGenerationMixin, WhisperPreTrainedModel):
     base_model_prefix = "model"
     _tied_weights_keys = ["proj_out.weight"]
@@ -46,15 +48,15 @@ class WhisperForConditionalGenerationWeightCE(WhisperGenerationMixin, WhisperPre
         attention_mask: Optional[torch.LongTensor] = None,
         decoder_input_ids: Optional[torch.LongTensor] = None,
         decoder_attention_mask: Optional[torch.LongTensor] = None,
-        head_mask:  Optional[torch.Tensor] = None,
+        head_mask: Optional[torch.Tensor] = None,
         decoder_head_mask: Optional[torch.Tensor] = None,
         cross_attn_head_mask: Optional[torch.Tensor] = None,
         encoder_outputs: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
-        past_key_values: Optional[Union[EncoderDecoderCache, Tuple[torch.FloatTensor]]] = None,
+        past_key_values: Optional[Union['EncoderDecoderCache', Tuple[torch.FloatTensor]]] = None,
         decoder_inputs_embeds: Optional[Tuple[torch.FloatTensor]] = None,
         decoder_position_ids: Optional[Tuple[torch.LongTensor]] = None,
         labels: Optional[torch.LongTensor] = None,
-        bias_spans: Optional[List[List[List[int]]]] = None,  # New parameter for bias spans
+        bias_spans: Optional[List[List[List[int]]]] = None,  # Token IDs for bias words per sample
         use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
@@ -107,9 +109,9 @@ class WhisperForConditionalGenerationWeightCE(WhisperGenerationMixin, WhisperPre
         if labels is not None:
             labels = labels.to(lm_logits.device)
             if bias_spans is not None:
-                # Compute weighted cross-entropy loss
+                # Compute per-token cross-entropy losses
                 batch_size, seq_len, vocab_size = lm_logits.shape
-                weights = torch.ones_like(labels, dtype=torch.float32)  # Default weight of 1.0
+                weights = torch.ones_like(labels, dtype=torch.float32)  # Shape: [batch_size, seq_len]
 
                 # Assign higher weights to bias word tokens
                 for i in range(batch_size):
@@ -118,19 +120,23 @@ class WhisperForConditionalGenerationWeightCE(WhisperGenerationMixin, WhisperPre
                             mask = labels[i] == token_id
                             weights[i][mask] = self.bias_weight
 
-                # Flatten tensors for loss computation
-                logits_flat = lm_logits.view(-1, vocab_size)
-                labels_flat = labels.view(-1)
-                weights_flat = weights.view(-1)
+                # Compute log probabilities
+                log_probs = F.log_softmax(lm_logits, dim=-1)  # Shape: [batch_size, seq_len, vocab_size]
+                # Gather log probabilities for the target labels
+                log_probs = log_probs.view(-1, vocab_size)  # Shape: [batch_size * seq_len, vocab_size]
+                labels_flat = labels.view(-1)  # Shape: [batch_size * seq_len]
+                weights_flat = weights.view(-1)  # Shape: [batch_size * seq_len]
 
-                # Compute weighted cross-entropy loss
-                loss = F.cross_entropy(
-                    logits_flat,
-                    labels_flat,
-                    weight=weights_flat,
-                    ignore_index=-100,
-                    reduction='mean'
-                )
+                # Compute per-token losses
+                per_token_loss = -log_probs[torch.arange(log_probs.size(0)), labels_flat]  # Shape: [batch_size * seq_len]
+                # Apply ignore_index (-100) mask
+                valid_mask = labels_flat != -100
+                per_token_loss = per_token_loss * valid_mask.float()
+                weights_flat = weights_flat * valid_mask.float()
+
+                # Apply weights and compute mean loss
+                weighted_loss = per_token_loss * weights_flat
+                loss = weighted_loss.sum() / (valid_mask.sum() + 1e-8)  # Avoid division by zero
             else:
                 # Fall back to standard cross-entropy loss
                 loss_fct = nn.CrossEntropyLoss(ignore_index=-100)
