@@ -22,6 +22,7 @@ from utils.compute_metric import compute_wer
 
 from transformers import (
     Seq2SeqTrainingArguments,
+    TrainingArguments,
     Seq2SeqTrainer,
     GenerationConfig,
     WhisperFeatureExtractor,
@@ -119,7 +120,7 @@ if __name__ == "__main__":
     root_path = "results/"
     os.makedirs(os.path.join(root_path), exist_ok=True)
     
-    training_args = Seq2SeqTrainingArguments(
+    training_args = TrainingArguments(
         output_dir=os.path.join(root_path, "models"),
         per_device_train_batch_size=1,
         per_device_eval_batch_size=1,
@@ -129,7 +130,7 @@ if __name__ == "__main__":
         gradient_accumulation_steps=8,
         # evaluation_strategy="epoch",
         # include_inputs_for_metrics=True,
-        include_for_metrics=["inputs"],
+        include_for_metrics = data_test["bias_spans"],
         save_strategy="epoch",
         logging_strategy="epoch",
         learning_rate=1e-5,
