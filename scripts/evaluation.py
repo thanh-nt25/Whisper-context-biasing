@@ -55,11 +55,15 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
+    args.random = True # 5% random prompt
+    
+    print("Bool of using prompt: ", args.prompt)
+    print("Bool of using random: ", args.random)
+    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Device:", device)
     
-    args.prompt = True
-    args.random = True # 5% random prompt
+    # args.prompt = True
     
     feature_extractor = WhisperFeatureExtractor.from_pretrained(f'openai/whisper-base.en')
     tokenizer = WhisperTokenizer.from_pretrained(f'openai/whisper-base.en', language='en', task='transcribe')
@@ -82,7 +86,7 @@ if __name__ == "__main__":
     # data_train = PromptWhisperDataset(base_path=os.path.join(data_root,data_dir), phase='train', feature_extractor=feature_extractor, audio_type=".mp3", tokenizer=tokenizer, prompt=args.prompt, random=args.random)
     # data_eval = PromptWhisperDataset(base_path=os.path.join(data_root,data_dir), phase='dev', feature_extractor=feature_extractor, audio_type=".mp3", tokenizer=tokenizer, prompt=args.prompt, basic=args.basic)
     data_test = PromptWhisperDataset(base_path=os.path.join(args.data_root, args.data_dir), jsonl_data=args.jsonl_data, phase='test', 
-                                     feature_extractor=feature_extractor, audio_type=".mp3", tokenizer=tokenizer, prompt=args.prompt)    
+                                     feature_extractor=feature_extractor, audio_type=".mp3", tokenizer=tokenizer, prompt=args.prompt, random=args.prompt)    
     # sample = data_test[0]
     
     # print(sample['input_features'])
@@ -141,11 +145,11 @@ if __name__ == "__main__":
         report_to = []
     )
     
-    trainer = Seq2SeqTrainer(
+    trainer = CustomTrainer(
         args=training_args,
         model=model,
         # train_dataset=data_train,
-        # eval_dataset=data_test,
+        # eval_dataset=data_eval,
         data_collator=data_collator,
         tokenizer=processor.feature_extractor,
         compute_metrics=compute_wer,
@@ -159,5 +163,6 @@ if __name__ == "__main__":
     print("Starting evaluation!")
     result = trainer.evaluate(data_test)
     print(result)
+    
     
     
