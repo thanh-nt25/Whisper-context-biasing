@@ -95,6 +95,8 @@ def compute_wer(pred):
         bias_spans = pred.bias_spans
     if bias_spans is not None:
       print("Bias span is not None")
+    else:
+      print(pred.bias_spans)
     # print("Typre of pred input: ", type(pred.inputs))
     # bias_spans = pred.inputs[0]
     # print("[DEBUG] bias_spans shape:", bias_spans.shape)
