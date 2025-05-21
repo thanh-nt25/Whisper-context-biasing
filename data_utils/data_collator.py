@@ -104,7 +104,7 @@ class DataCollatorSpeechSeq2SeqWithPadding:
         batch["decoder_input_ids"] = decoder_input_ids
         
         if "bias_spans" in features[0]:
-          batch["bias_spans"] = [f["bias_spans"] for f in features]
+          self.tmp_bias_spans = [f["bias_spans"] for f in features]
           # batch["non_tensor_keys"] = ["bias_spans"]
           # print("Found bias spans!")
           # print("Bias span shape: ", batch["bias_spans"].shape)
