@@ -13,7 +13,7 @@ class WhisperForConditionalGenerationWeightCE(WhisperGenerationMixin, WhisperPre
     base_model_prefix = "model"
     _tied_weights_keys = ["proj_out.weight"]
 
-    def __init__(self, config, bias_weight=1.5):
+    def __init__(self, config, bias_weight=10.0):
         super().__init__(config)
         self.model = WhisperModel(config)
         self.proj_out = nn.Linear(config.d_model, config.vocab_size, bias=False)
@@ -74,6 +74,7 @@ class WhisperForConditionalGenerationWeightCE(WhisperGenerationMixin, WhisperPre
             Seq2SeqLMOutput: Model outputs with loss and logits.
         """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        use_cache = use_cache if use_cache is not None else self.config.use_cache
 
         if labels is not None:
             if labels.shape[1] > self.max_target_positions:
@@ -84,6 +85,10 @@ class WhisperForConditionalGenerationWeightCE(WhisperGenerationMixin, WhisperPre
                 decoder_input_ids = shift_tokens_right(
                     labels, self.config.pad_token_id, self.config.decoder_start_token_id
                 )
+
+        # Convert legacy past_key_values to EncoderDecoderCache
+        if past_key_values is not None and not isinstance(past_key_values, EncoderDecoderCache):
+            past_key_values = EncoderDecoderCache.from_legacy_cache(past_key_values)
 
         outputs = self.model(
             input_features,
@@ -116,7 +121,12 @@ class WhisperForConditionalGenerationWeightCE(WhisperGenerationMixin, WhisperPre
                 # Assign higher weights to contiguous bias_span matches
                 for i in range(batch_size):
                     for bias_span in bias_spans[i]:  # Each bias_span is a list of token IDs
-                        if not bias_span:  # Skip empty bias spans
+                        # Check for empty bias_span (handle both lists and tensors)
+                        if isinstance(bias_span, torch.Tensor):
+                            if bias_span.numel() == 0:
+                                continue
+                            bias_span = bias_span.tolist()  # Convert tensor to list for comparison
+                        elif not bias_span:  # Empty list
                             continue
                         span_len = len(bias_span)
                         # Search for contiguous matches in labels[i]

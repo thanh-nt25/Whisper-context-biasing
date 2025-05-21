@@ -183,7 +183,7 @@ def main():
         hub_model_id="thanh-nt25/whisper-medical-biasing",
         hub_strategy="every_save",
         push_to_hub_token=args.hf_token,
-        report_to=["wandb"]
+        report_to=[]
     )
 
     # Initialize trainer
