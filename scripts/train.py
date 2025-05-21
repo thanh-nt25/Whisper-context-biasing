@@ -163,7 +163,7 @@ def main():
         max_steps=iteration_steps,
         warmup_steps=100,
         weight_decay=0.01,
-        evaluation_strategy="steps",
+        eval_strategy="steps",
         eval_steps=eval_step,
         save_strategy="steps",
         save_steps=eval_step,
