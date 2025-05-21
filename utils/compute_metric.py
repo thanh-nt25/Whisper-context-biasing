@@ -90,7 +90,9 @@ class BasicTextNormalizer:
 metric = evaluate.load("wer")
 
 def compute_wer(pred):
-    print("[DEBUG] eval_pred.inputs keys:", pred.inputs.keys())
+    bias_spans = pred.inputs[0]
+    # print("[DEBUG] eval_pred.inputs keys:", pred.inputs.keys())
+    print("[DEBUG] bias_spans shape:", bias_spans.shape)
 
     # inputs = pred.inputs
     # if isinstance(inputs, tuple):  # Nếu inputs là tuple (có thể do nhiều đầu vào)
@@ -99,19 +101,19 @@ def compute_wer(pred):
     #         input_ids = inputs
 
     # print("This is fucking input: ", input_ids)
-    inputs = pred.inputs
-    if inputs is not None and isinstance(inputs, dict) and "bias_spans" in inputs:
-        bias_spans = inputs["bias_spans"]
-        if isinstance(bias_spans, torch.Tensor):
-            bias_spans = bias_spans.cpu().numpy()
-    else:
-        bias_spans = None  # hoặc raise lỗi nếu cần
+    # inputs = pred.inputs
+    # if inputs is not None and isinstance(inputs, dict) and "bias_spans" in inputs:
+    #     bias_spans = inputs["bias_spans"]
+    #     if isinstance(bias_spans, torch.Tensor):
+    #         bias_spans = bias_spans.cpu().numpy()
+    # else:
+    #     bias_spans = None  # hoặc raise lỗi nếu cần
 
-    # Sau đó xử lý bias_spans
-    if bias_spans is not None:
-        print("Bias spans shape:", bias_spans.shape)
-    else:
-        print("Bias spans not found")
+    # # Sau đó xử lý bias_spans
+    # if bias_spans is not None:
+    #     print("Bias spans shape:", bias_spans.shape)
+    # else:
+    #     print("Bias spans not found")
 
     pred_ids = pred.predictions
     label_ids = pred.label_ids
