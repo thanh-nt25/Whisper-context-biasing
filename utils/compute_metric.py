@@ -102,7 +102,7 @@ def compute_wer(pred):
     total_wer = 0
     batch_results = []
     results = []
-    batch_size = 4
+    batch_size = 8
     
     print("\n\nDone inference!")
     print("Start decoding and calculating WER...")
