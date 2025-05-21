@@ -89,7 +89,8 @@ class BasicTextNormalizer:
 # metric
 metric = evaluate.load("wer")
 
-def compute_wer(pred):
+def compute_wer(pred, input_ids="hello"):
+    print(input_ids)
 # def compute_wer(pred, prompts):
     # global trainer  # Đảm bảo trainer được khai báo ở ngoài
     # bias_words_batch = trainer.current_bias_spans if hasattr(trainer, 'current_bias_spans') else []
@@ -105,7 +106,7 @@ def compute_wer(pred):
     #         if token_ids:
     #             span_list.append(token_ids)
         # bias_words_batch.append(span_list)
-    print("eval input: ", pred.inputs[0])
+    # print("eval input: ", pred.inputs[0])
     pred_ids = pred.predictions
     label_ids = pred.label_ids
     normalizer = BasicTextNormalizer()
