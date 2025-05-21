@@ -89,11 +89,23 @@ class BasicTextNormalizer:
 # metric
 metric = evaluate.load("wer")
 
-def compute_wer(pred, bias_words_batch=None):
+def compute_wer(pred):
 # def compute_wer(pred, prompts):
     # global trainer  # Đảm bảo trainer được khai báo ở ngoài
     # bias_words_batch = trainer.current_bias_spans if hasattr(trainer, 'current_bias_spans') else []
     # bias_words_batch = pred.inputs["bias_spans"]
+    bias_tensor = pred.inputs["bias_spans"]  # (B, S, L)
+
+    # Chuyển thành danh sách để xử lý
+    bias_words_batch = []
+    for spans in bias_tensor:
+        span_list = []
+        for span in spans:
+            token_ids = [i.item() for i in span if i.item() != pad_token_id]
+            if token_ids:
+                span_list.append(token_ids)
+        bias_words_batch.append(span_list)
+    
     pred_ids = pred.predictions
     label_ids = pred.label_ids
     normalizer = BasicTextNormalizer()
@@ -183,6 +195,14 @@ def compute_wer(pred, bias_words_batch=None):
     }
 
 
-def compute_metrics(pred):
-    bias_spans = getattr(pred, "bias_spans", None)
-    return compute_wer(pred, bias_words_batch=bias_spans)
+# def compute_metrics(pred):
+#     # bias_spans = getattr(pred, "bias_spans", None)
+#     bias_words_batch = []
+#     for spans in bias_tensor:
+#         span_list = []
+#         for span in spans:
+#             token_ids = [i.item() for i in span if i.item() != pad_token_id]
+#             if token_ids:
+#                 span_list.append(token_ids)
+#         bias_words_batch.append(span_list)
+#     return compute_wer(pred, bias_words_batch=bias_spans)

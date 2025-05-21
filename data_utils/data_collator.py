@@ -104,9 +104,16 @@ class DataCollatorSpeechSeq2SeqWithPadding:
         batch["decoder_input_ids"] = decoder_input_ids
         
         if "bias_spans" in features[0]:
-          self.tmp_bias_spans = [f["bias_spans"] for f in features]
-          # batch["non_tensor_keys"] = ["bias_spans"]
-          # print("Found bias spans!")
-          # print("Bias span shape: ", batch["bias_spans"].shape)
-        # print("Batch shape: ", batch.shape)
+            raw_spans = [f["bias_spans"] for f in features]
+
+            max_span_len = max(max(len(span) for span in sample) for sample in raw_spans)
+            max_n_spans = max(len(sample) for sample in raw_spans)
+
+            fully_padded = [
+                [span + [self.processor.tokenizer.pad_token_id] * (max_span_len - len(span)) for span in sample]
+                + [[self.processor.tokenizer.pad_token_id] * max_span_len] * (max_n_spans - len(sample))
+                for sample in raw_spans
+            ]
+
+            batch["bias_spans"] = torch.tensor(fully_padded, dtype=torch.long)
         return batch
