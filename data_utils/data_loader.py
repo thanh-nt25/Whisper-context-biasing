@@ -93,7 +93,7 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                     print(f"[WARNING] Ignore JSON line: {line.strip()}")
             
     def _load_data(self):
-        jsonl_path = os.path.join("data", self.jsonl_data, f"{self.phase}.jsonl")
+        jsonl_path = os.path.join(self.jsonl_data, f"{self.phase}.jsonl")
 
         if not os.path.isfile(jsonl_path):
             raise FileNotFoundError(f"Jsonl file not found: {jsonl_path}")
