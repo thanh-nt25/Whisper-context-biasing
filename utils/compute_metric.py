@@ -110,12 +110,6 @@ def compute_wer(pred):
     cutted_label_ids = []
     cutted_pred_ids = []
 
-    # chinh sua lai ham nay
-    # if len(prompts) != 0:
-    #     for i in tqdm(range(0, len(pred_ids))):
-    #         cutted_pred_ids.append(pred_ids[i][len(prompts[i][0])+1:])
-    #         cutted_label_ids.append(label_ids[i][len(prompts[i][0])+1:])
-    
     # cut prompt (dang truoc <SOT>) => luon luon cat duoc ke ca khi ko co prompt
     for i in tqdm(range(len(pred_ids))):
         label_tensor = torch.tensor(label_ids[i])
@@ -137,7 +131,6 @@ def compute_wer(pred):
 
         pre_strs = tokenizer.batch_decode(batch_pred_ids, skip_special_tokens=True)
         label_strs = tokenizer.batch_decode(batch_label_ids, skip_special_tokens=True)
-        # pre_strs, label_strs = zip(*[(normalizer(pred), normalizer(label)) for pred, label in zip(pre_strs, label_strs) if label != 'ignore_time_segment_in_scoring'])
 
         filtered_pre_strs = []
         filtered_label_strs = []
@@ -159,14 +152,6 @@ def compute_wer(pred):
             f.write(f'Ref : {ref}\n')
             f.write(f'Pred:{pred}\n\n')
 
-    # for label, pred, bias_list in zip(label_strs, pre_strs, bias_words_batch):
-    #   if any(bias.lower() in label.lower() for bias in bias_list):
-    #       bias_results.append((label, pred))
-          
-    # bias_label_strs = [l for l, _ in bias_results]
-    # bias_pred_strs = [p for _, p in bias_results]
-
-    # bias_wer = 100 * metric.compute(predictions=bias_pred_strs, references=bias_label_strs)
           
     pre_strs = [pred for _, pred in results]
     label_strs = [ref for ref, _ in results]
@@ -175,18 +160,4 @@ def compute_wer(pred):
 
     return {
         'wer': total_wer
-        # 'bias_wer': bias_wer
     }
-
-
-# def compute_metrics(pred):
-#     # bias_spans = getattr(pred, "bias_spans", None)
-#     bias_words_batch = []
-#     for spans in bias_tensor:
-#         span_list = []
-#         for span in spans:
-#             token_ids = [i.item() for i in span if i.item() != pad_token_id]
-#             if token_ids:
-#                 span_list.append(token_ids)
-#         bias_words_batch.append(span_list)
-#     return compute_wer(pred, bias_words_batch=bias_spans)

@@ -16,3 +16,4 @@ editdistance
 av
 accelerate == 0.28.0
 tensorboardX
+huggingface_hub

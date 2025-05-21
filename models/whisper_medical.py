@@ -13,7 +13,7 @@ class WhisperForConditionalGenerationWeightCE(WhisperGenerationMixin, WhisperPre
     base_model_prefix = "model"
     _tied_weights_keys = ["proj_out.weight"]
 
-    def __init__(self, config, bias_weight=10.0):
+    def __init__(self, config, bias_weight=1.5):
         super().__init__(config)
         self.model = WhisperModel(config)
         self.proj_out = nn.Linear(config.d_model, config.vocab_size, bias=False)
@@ -113,16 +113,19 @@ class WhisperForConditionalGenerationWeightCE(WhisperGenerationMixin, WhisperPre
                 batch_size, seq_len, vocab_size = lm_logits.shape
                 weights = torch.ones_like(labels, dtype=torch.float32)  # Shape: [batch_size, seq_len]
 
-                # Assign higher weights to bias word tokens
+                # Assign higher weights to contiguous bias_span matches
                 for i in range(batch_size):
                     for bias_span in bias_spans[i]:  # Each bias_span is a list of token IDs
-                        for token_id in bias_span:
-                            mask = labels[i] == token_id
-                            weights[i][mask] = self.bias_weight
+                        if not bias_span:  # Skip empty bias spans
+                            continue
+                        span_len = len(bias_span)
+                        # Search for contiguous matches in labels[i]
+                        for j in range(seq_len - span_len + 1):
+                            if labels[i, j:j + span_len].tolist() == bias_span:
+                                weights[i, j:j + span_len] = self.bias_weight
 
                 # Compute log probabilities
                 log_probs = F.log_softmax(lm_logits, dim=-1)  # Shape: [batch_size, seq_len, vocab_size]
-                # Gather log probabilities for the target labels
                 log_probs = log_probs.view(-1, vocab_size)  # Shape: [batch_size * seq_len, vocab_size]
                 labels_flat = labels.view(-1)  # Shape: [batch_size * seq_len]
                 weights_flat = weights.view(-1)  # Shape: [batch_size * seq_len]
