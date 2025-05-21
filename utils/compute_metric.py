@@ -89,24 +89,15 @@ class BasicTextNormalizer:
 # metric
 metric = evaluate.load("wer")
 
-def compute_wer(pred, input_ids="hello"):
-    print(input_ids)
-# def compute_wer(pred, prompts):
-    # global trainer  # Đảm bảo trainer được khai báo ở ngoài
-    # bias_words_batch = trainer.current_bias_spans if hasattr(trainer, 'current_bias_spans') else []
-    # bias_words_batch = pred.inputs["bias_spans"]
-    # bias_tensor = pred.inputs["bias_spans"]  # (B, S, L)
-    # # print(bias_tensor)
-    # # Chuyển thành danh sách để xử lý
-    # bias_words_batch = []
-    # for spans in bias_tensor:
-    #     span_list = []
-    #     for span in spans:
-    #         token_ids = [i.item() for i in span if i.item() != 50256]
-    #         if token_ids:
-    #             span_list.append(token_ids)
-        # bias_words_batch.append(span_list)
-    # print("eval input: ", pred.inputs[0])
+def compute_wer(pred):
+    inputs = pred.inputs
+    if isinstance(inputs, tuple):  # Nếu inputs là tuple (có thể do nhiều đầu vào)
+            input_ids = inputs[0]
+    else:
+            input_ids = inputs
+
+    print("This is fucking input: ", input_ids)
+
     pred_ids = pred.predictions
     label_ids = pred.label_ids
     normalizer = BasicTextNormalizer()
