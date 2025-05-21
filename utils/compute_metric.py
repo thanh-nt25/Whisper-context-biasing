@@ -93,13 +93,10 @@ def compute_wer(pred, **kwargs):
     bias_spans = kwargs.get("bias_spans", None)
     
     if bias_spans is not None:
-        try:
-            print(f"Có bias_spans với kích thước: {bias_spans.shape}")
-            # Logic tính bias WER ở đây
-            # bias_wer = calculate_bias_wer(pred_str, label_str, bias_spans)
-            # metrics["bias_wer"] = bias_wer
-        except Exception as e:
-            print(f"Lỗi khi tính bias WER: {e}")
+      print(f"Có bias_spans với kích thước: {bias_spans.shape}")
+    else:
+      print("Ko co bias nhan duoc tai compute metric")
+
 
     pred_ids = pred.predictions
     label_ids = pred.label_ids
