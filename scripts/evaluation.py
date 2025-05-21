@@ -130,7 +130,7 @@ if __name__ == "__main__":
         gradient_accumulation_steps=8,
         # evaluation_strategy="epoch",
         # include_inputs_for_metrics=True,
-        include_for_metrics = data_test["bias_spans"],
+        include_for_metrics = ["bias_spans"],
         save_strategy="epoch",
         logging_strategy="epoch",
         learning_rate=1e-5,
