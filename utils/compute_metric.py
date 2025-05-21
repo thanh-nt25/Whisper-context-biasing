@@ -90,7 +90,7 @@ class BasicTextNormalizer:
 metric = evaluate.load("wer")
 
 def compute_wer(pred):
-    print("[DEBUG] eval_pred.inputs keys:", eval_pred.inputs.keys())
+    print("[DEBUG] eval_pred.inputs keys:", pred.inputs.keys())
 
     # inputs = pred.inputs
     # if isinstance(inputs, tuple):  # Nếu inputs là tuple (có thể do nhiều đầu vào)
