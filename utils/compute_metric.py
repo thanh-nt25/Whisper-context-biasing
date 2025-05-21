@@ -90,9 +90,9 @@ class BasicTextNormalizer:
 metric = evaluate.load("wer")
 
 def compute_wer(pred):
-    bias_spans = pred.inputs[0]
-    # print("[DEBUG] eval_pred.inputs keys:", pred.inputs.keys())
-    print("[DEBUG] bias_spans shape:", bias_spans.shape)
+    print("Typre of pred input: ", type(pred.inputs))
+    # bias_spans = pred.inputs[0]
+    # print("[DEBUG] bias_spans shape:", bias_spans.shape)
 
     # inputs = pred.inputs
     # if isinstance(inputs, tuple):  # Nếu inputs là tuple (có thể do nhiều đầu vào)
