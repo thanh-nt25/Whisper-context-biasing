@@ -89,15 +89,7 @@ class BasicTextNormalizer:
 # metric
 metric = evaluate.load("wer")
 
-def compute_wer(pred, **kwargs):
-    bias_spans = kwargs.get("bias_spans", None)
-    
-    if bias_spans is not None:
-      print(f"Có bias_spans với kích thước: {bias_spans.shape}")
-    else:
-      print("Ko co bias nhan duoc tai compute metric")
-
-
+def compute_wer(pred):
     pred_ids = pred.predictions
     label_ids = pred.label_ids
     normalizer = BasicTextNormalizer()

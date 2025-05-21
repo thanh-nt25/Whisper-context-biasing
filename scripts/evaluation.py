@@ -145,7 +145,7 @@ if __name__ == "__main__":
         report_to = []
     )
     
-    trainer = CustomTrainer(
+    trainer = Seq2SeqTrainer(
         args=training_args,
         model=model,
         # train_dataset=data_train,
