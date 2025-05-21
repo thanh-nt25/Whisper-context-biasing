@@ -140,7 +140,7 @@ if __name__ == "__main__":
         report_to = []
     )
     
-    trainer = Seq2SeqTrainer(
+    trainer = CustomTrainer(
         args=training_args,
         model=model,
         # train_dataset=data_train,
