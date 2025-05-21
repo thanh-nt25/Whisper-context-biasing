@@ -89,8 +89,11 @@ class BasicTextNormalizer:
 # metric
 metric = evaluate.load("wer")
 
-def compute_wer(pred):
+def compute_wer(pred, bias_words_batch=None):
 # def compute_wer(pred, prompts):
+    # global trainer  # Đảm bảo trainer được khai báo ở ngoài
+    # bias_words_batch = trainer.current_bias_spans if hasattr(trainer, 'current_bias_spans') else []
+    
     pred_ids = pred.predictions
     label_ids = pred.label_ids
     normalizer = BasicTextNormalizer()
@@ -101,8 +104,10 @@ def compute_wer(pred):
 
     label_ids[label_ids == -100] = tokenizer.pad_token_id
     total_wer = 0
+    batch_results = []
     results = []
     batch_size = 4
+    
     print("\n\nDone inference!")
     print("Start decoding and calculating WER...")
 
@@ -158,8 +163,26 @@ def compute_wer(pred):
             f.write(f'Ref : {ref}\n')
             f.write(f'Pred:{pred}\n\n')
 
+    for label, pred, bias_list in zip(label_strs, pre_strs, bias_words_batch):
+      if any(bias.lower() in label.lower() for bias in bias_list):
+          bias_results.append((label, pred))
+          
+    bias_label_strs = [l for l, _ in bias_results]
+    bias_pred_strs = [p for _, p in bias_results]
+
+    bias_wer = 100 * metric.compute(predictions=bias_pred_strs, references=bias_label_strs)
+          
     pre_strs = [pred for _, pred in results]
     label_strs = [ref for ref, _ in results]
+    
     total_wer = 100 * metric.compute(predictions=pre_strs, references=label_strs)
 
-    return {'wer': total_wer}
+    return {
+        'wer': total_wer,
+        'bias_wer': bias_wer
+    }
+
+
+def compute_metrics(pred):
+    bias_spans = getattr(pred, "bias_spans", None)
+    return compute_wer(pred, bias_words_batch=bias_spans)

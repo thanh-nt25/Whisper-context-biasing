@@ -18,7 +18,7 @@ from models.whisper_medical import WhisperMedicalForConditionalGeneration
 from data_utils.data_loader import PromptWhisperDataset
 from data_utils.data_collator import DataCollatorSpeechSeq2SeqWithPadding
 
-from utils.compute_metric import compute_wer
+from utils.compute_metric import compute_wer, compute_metrics
 
 from transformers import (
     Seq2SeqTrainingArguments,
@@ -29,6 +29,8 @@ from transformers import (
     WhisperProcessor,
     WhisperConfig
 )
+
+from trainer.CustomTrainer import CustomTrainer
 
 # sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "config")))
 from config.config import DATA_ROOT, DATA_DIR, JSONL_DATA
@@ -108,6 +110,7 @@ if __name__ == "__main__":
     # config = WhisperConfig.from_pretrained("openai/whisper-base.en")
     # model = WhisperMedicalForConditionalGeneration(config)
     
+    # here
     model = WhisperMedicalForConditionalGeneration.from_pretrained("openai/whisper-base.en", freeze_encoder=False)
     
     model.config.forced_decoder_ids = None
@@ -136,14 +139,14 @@ if __name__ == "__main__":
         report_to = []
     )
     
-    trainer = Seq2SeqTrainer(
+    trainer = CustomTrainer(
         args=training_args,
         model=model,
         # train_dataset=data_train,
-        # eval_dataset=data_eval,
+        # eval_dataset=data_test,
         data_collator=data_collator,
         tokenizer=processor.feature_extractor,
-        compute_metrics=compute_wer,
+        compute_metrics=compute_metrics,
     )
 
     if (len(data_test) == 0):

@@ -49,4 +49,4 @@ from pathlib import Path
 # jsonl_data = "data_small_jsonl"
 DATA_ROOT = ""
 DATA_DIR = os.path.join("data", "medical-united-syn-med-test")
-JSONL_DATA = "data_small_jsonl"
+JSONL_DATA = "medical-united-syn-med-test-jsonl"

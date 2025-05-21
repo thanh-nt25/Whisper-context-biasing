@@ -107,6 +107,7 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                     audio_filename = json_data.get("file", "")
                     text = json_data.get("text", "")
                     prompt = json_data.get("description", "")
+                    bias_per_sample = json_data.get("bias_words", [])
 
                     if not audio_filename:
                         continue
@@ -117,7 +118,8 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                         audio_filename,
                         prompt,
                         random_prompt,
-                        text
+                        text,
+                        bias_per_sample
                     ])
                 except json.JSONDecodeError:
                     print(f"[WARNING] Ignore JSON line: {line.strip()}")
@@ -128,8 +130,14 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
     # input feature
     # labels = prompt + labels
     def __getitem__(self, id):
-        audio_filename, prompt, random_prompt, raw_text = self.data[id]
+        audio_filename, prompt, random_prompt, raw_text, bias_words = self.data[id]
         audio_path = os.path.join(self.base_path, self.phase, audio_filename)
+        
+        bias_spans = [] # list per sample
+        for word in bias_words:
+          ids = self.tokenizer.encode(word.lower(), add_special_tokens=False)
+          if ids:
+              bias_spans.append(ids)
 
         try:
             audio, sr = librosa.load(audio_path, sr=self.sample_rate)
@@ -140,6 +148,7 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
             encoded_label = self.tokenizer.encode(raw_text.lower(), add_special_tokens=False)
 
             if self.prompt:
+                # print("Using prompt in datasets!")
                 if self.random_prompt and 'train' in self.phase:
                     if torch.rand([]) < 0.05:
                         prompt_text = random_prompt
@@ -162,10 +171,23 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
 
                 return {
                     "input_features": processed_audio,
-                    "labels": full_sequence_tensor
+                    "labels": full_sequence_tensor,
+                    "bias_spans": bias_spans
                 }
             else:
-                raise ValueError("prompt must be used.")
+                print("Not using prompt in datasets!")
+                start_of_transcript = self.tokenizer.convert_tokens_to_ids("<|startoftranscript|>")
+                
+                full_sequence = [start_of_transcript] + encoded_label
+                full_sequence_tensor = torch.tensor(full_sequence)
+
+                return {
+                    "input_features": processed_audio,
+                    "labels": full_sequence_tensor,
+                    "bias_spans": bias_spans
+                }
+                
+                # raise ValueError("prompt must be used.")
 
         except Exception as e:
             print(f"Error processing sample {id}, file: {audio_path}, error: {str(e)}")
