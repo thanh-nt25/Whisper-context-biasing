@@ -116,7 +116,8 @@ if __name__ == "__main__":
     # model = WhisperMedicalForConditionalGeneration(config)
     
     # here
-    model = WhisperForConditionalGenerationWeightCE.from_pretrained("openai/whisper-base.en", freeze_encoder=True)
+    model = WhisperForConditionalGenerationWeightCE.from_pretrained("openai/whisper-base.en")
+    model.freeze_encoder()
     
     model.config.forced_decoder_ids = None
     model.config.suppress_tokens = []
