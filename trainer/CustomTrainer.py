@@ -33,16 +33,10 @@ class CustomTrainer(Seq2SeqTrainer):
         return (final_loss, outputs) if return_outputs else final_loss
 
     def prediction_step(self, model, inputs, prediction_loss_only, ignore_keys=None):
-        # Lưu lại bias_spans riêng để dùng cho compute_metrics
-        self._stored_bias_spans = inputs.pop("bias_spans", None)
-
-        # Loại các trường không phải Tensor trước khi truyền vào model/generate
-        non_tensor_keys = inputs.pop("non_tensor_keys", [])
-        for key in non_tensor_keys:
-            inputs.pop(key, None)
-
+        if hasattr(self.data_collator, "bias_spans_batch"):
+            self._stored_bias_spans = self.data_collator.bias_spans_batch
         return super().prediction_step(model, inputs, prediction_loss_only, ignore_keys)
-      
+        
     def evaluation_loop(self, dataloader, description, prediction_loss_only=None, ignore_keys=None, metric_key_prefix="eval"):
         output = super().evaluation_loop(dataloader, description, prediction_loss_only, ignore_keys, metric_key_prefix)
         if hasattr(self, "_stored_bias_spans"):
