@@ -67,7 +67,7 @@ class CustomTrainer(Seq2SeqTrainer):
             output = EvalPrediction(
                 predictions=output.predictions,
                 label_ids=output.label_ids,
-                inputs={"bias_spans": bias_spans}
+                inputs=(bias_spans,)  # tuple 1 phần tử
             )
 
             # Reset lại bộ nhớ tạm
