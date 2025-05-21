@@ -120,7 +120,7 @@ if __name__ == "__main__":
     root_path = "results/"
     os.makedirs(os.path.join(root_path), exist_ok=True)
     
-    training_args = TrainingArguments(
+    training_args = Seq2SeqTrainingArguments(
         output_dir=os.path.join(root_path, "models"),
         per_device_train_batch_size=1,
         per_device_eval_batch_size=1,
