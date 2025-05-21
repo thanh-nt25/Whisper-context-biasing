@@ -124,3 +124,4 @@ class DataCollatorSpeechSeq2SeqWithPadding:
             batch["bias_spans"] = torch.tensor(fully_padded, dtype=torch.long)
             
         return batch
+            

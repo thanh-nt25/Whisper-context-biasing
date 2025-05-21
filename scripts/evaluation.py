@@ -12,7 +12,8 @@ from pathlib import Path
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from models.whisper_medical import WhisperMedicalForConditionalGeneration
+from models.whisper_medical_base import WhisperMedicalForConditionalGeneration
+from models.whisper_medical_WCE import WhisperForConditionalGenerationWeightCE
 
 from data_utils.data_loader import PromptWhisperDataset
 from data_utils.data_collator import DataCollatorSpeechSeq2SeqWithPadding
@@ -115,7 +116,7 @@ if __name__ == "__main__":
     # model = WhisperMedicalForConditionalGeneration(config)
     
     # here
-    model = WhisperMedicalForConditionalGeneration.from_pretrained("openai/whisper-base.en", freeze_encoder=False)
+    model = WhisperForConditionalGenerationWeightCE.from_pretrained("openai/whisper-base.en", freeze_encoder=True)
     
     model.config.forced_decoder_ids = None
     model.config.suppress_tokens = []
