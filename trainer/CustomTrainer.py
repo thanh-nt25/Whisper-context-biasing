@@ -1,95 +1,55 @@
-from transformers import Seq2SeqTrainer, EvalPrediction
-import torch
-from typing import Optional, List, Dict, Union, Any
+# File: /kaggle/working/Whisper-context-biasing/trainer/CustomTrainer.py
 
-
-# class CustomTrainer(Seq2SeqTrainer):
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-#         self._stored_bias_spans = []  # bộ nhớ tạm để giữ bias spans cho toàn batch
-
-#     def prediction_step(
-#         self,
-#         model: torch.nn.Module,
-#         inputs: Dict[str, Union[torch.Tensor, Any]],
-#         prediction_loss_only: bool,
-#         ignore_keys: Optional[List[str]] = None,
-#     ):
-#         has_labels = "labels" in inputs
-
-#         # Lưu bias_spans ra ngoài, tránh truyền vào model
-#         bias_spans = inputs.get("bias_spans", None)
-
-#         # Xoá khỏi inputs để không gây lỗi model(**inputs)
-#         clean_inputs = {k: v for k, v in inputs.items() if k != "bias_spans"}
-#         clean_inputs = self._prepare_inputs(clean_inputs)
-
-#         with torch.no_grad():
-#             if has_labels:
-#                 loss, outputs = self.compute_loss(model, clean_inputs, return_outputs=True)
-#                 logits = outputs.logits
-#             else:
-#                 loss = None
-#                 outputs = model(**clean_inputs)
-#                 logits = outputs.logits
-
-#         labels = clean_inputs.get("labels")
-
-#         #  Ghi lại bias_spans nếu có
-#         if bias_spans is not None:
-#             self._stored_bias_spans.append(bias_spans.detach().cpu())
-
-#         return (loss, logits, labels)
-
-#     def evaluation_loop(
-#         self,
-#         dataloader: torch.utils.data.DataLoader,
-#         description: str,
-#         prediction_loss_only: Optional[bool] = None,
-#         ignore_keys: Optional[List[str]] = None,
-#         metric_key_prefix: str = "eval",
-#     ):
-#         # gọi hàm evaluation_loop gốc
-#         output = super().evaluation_loop(
-#             dataloader,
-#             description,
-#             prediction_loss_only=prediction_loss_only,
-#             ignore_keys=ignore_keys,
-#             metric_key_prefix=metric_key_prefix,
-#         )
-
-#         # ✅ Gắn bias_spans vào EvalPrediction.inputs
-#         if self._stored_bias_spans:
-#             # Ghép các batch lại thành tensor
-#             bias_spans = torch.cat(self._stored_bias_spans, dim=0).numpy()
-
-#             # Tạo EvalPrediction mới (vì nó là immutable)
-#             output = EvalPrediction(
-#                 predictions=output.predictions,
-#                 label_ids=output.label_ids,
-#                 inputs=(bias_spans,)  # tuple 1 phần tử
-#             )
-
-#             # Reset lại bộ nhớ tạm
-#             self._stored_bias_spans = []
-
-#         return output
+from transformers import Seq2SeqTrainer
+from transformers.trainer_utils import PredictionOutput
+from typing import Dict, List, Optional, Union, Any
 
 class CustomTrainer(Seq2SeqTrainer):
     def prediction_step(self, model, inputs, prediction_loss_only, ignore_keys=None):
         # Lưu bias_spans từ inputs nếu có
-        self.bias_spans = inputs.pop("bias_spans", None)
+        if "bias_spans" in inputs:
+            self.bias_spans = inputs.pop("bias_spans")
         
         # Gọi hàm prediction_step của lớp cha
-        outputs = super().prediction_step(model, inputs, prediction_loss_only, ignore_keys)
-        
-        return outputs
+        return super().prediction_step(model, inputs, prediction_loss_only, ignore_keys)
     
-    def evaluate(self, *args, **kwargs):
-        metrics = super().evaluate(*args, **kwargs)
-        
-        # Truyền bias_spans vào prediction_loop
-        if hasattr(self, "bias_spans") and self.bias_spans is not None:
-            self._prediction_loop.bias_spans = self.bias_spans
+    def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval"):
+        # Gọi phương thức evaluate của lớp cha
+        metrics = super().evaluate(eval_dataset, ignore_keys, metric_key_prefix)
         
         return metrics
+    
+    def prediction_loop(
+        self,
+        dataloader,
+        description,
+        prediction_loss_only=None,
+        ignore_keys=None,
+        metric_key_prefix="eval",
+    ):
+        """
+        Ghi đè phương thức prediction_loop để truyền bias_spans vào PredictionOutput
+        """
+        prediction_loss_only = prediction_loss_only if prediction_loss_only is not None else self.args.prediction_loss_only
+
+        # Tạo và sử dụng progress bar tùy thuộc vào môi trường
+        if self.args.do_predict:
+            logger.info(f"***** Running {description} *****")
+
+        # Gọi phương thức prediction_loop của lớp cha
+        outputs = super().prediction_loop(dataloader, description, prediction_loss_only, ignore_keys, metric_key_prefix)
+        
+        # Thêm bias_spans vào outputs nếu có
+        if hasattr(self, "bias_spans"):
+            # Tạo một PredictionOutput mới bao gồm bias_spans
+            enhanced_outputs = PredictionOutput(
+                predictions=outputs.predictions,
+                label_ids=outputs.label_ids,
+                metrics=outputs.metrics,
+                num_samples=outputs.num_samples,
+            )
+            # Thêm bias_spans vào đối tượng
+            enhanced_outputs.bias_spans = self.bias_spans
+            return enhanced_outputs
+        
+        return outputs
