@@ -104,91 +104,91 @@ if __name__ == "__main__":
     # print("tokenizer.decode([50359]): ", tokenizer.decode([50359]))
     # print("tokenizer.decode([50361]): ", tokenizer.decode([50361]))
 
-    dataloader = DataLoader(
-        dataset=data_test,
-        batch_size=25,  # hoặc 1, tùy bạn muốn kiểm tra bao nhiêu sample
-        collate_fn=data_collator,
-        shuffle=False
-    )
+    # dataloader = DataLoader(
+    #     dataset=data_test,
+    #     batch_size=25,  # hoặc 1, tùy bạn muốn kiểm tra bao nhiêu sample
+    #     collate_fn=data_collator,
+    #     shuffle=False
+    # )
     
-    batch = next(iter(dataloader))
+    # batch = next(iter(dataloader))
 
-    # In thông tin batch
-    print("Keys in batch:", batch.keys())
-    print("Shape of input_features:", batch["input_features"].shape)
-    print("Shape of labels:", batch["labels"].shape)
+    # # In thông tin batch
+    # print("Keys in batch:", batch.keys())
+    # print("Shape of input_features:", batch["input_features"].shape)
+    # print("Shape of labels:", batch["labels"].shape)
 
-    # In bias_spans
-    if "bias_spans" in batch:
-        print("Shape of bias_spans:", batch["bias_spans"].shape)
-        print("bias_spans:")
-        print(batch["bias_spans"])
+    # # In bias_spans
+    # if "bias_spans" in batch:
+    #     print("Shape of bias_spans:", batch["bias_spans"].shape)
+    #     print("bias_spans:")
+    #     print(batch["bias_spans"])
 
-        # Optional: decode từng span
-        for i in range(batch["bias_spans"].shape[0]):
-            print(f"\nSample {i}:")
-            for j in range(batch["bias_spans"].shape[1]):
-                span = batch["bias_spans"][i, j].tolist()
-                if all(tok == 50256 for tok in span):
-                    continue
-                decoded = tokenizer.decode([tok for tok in span if tok != 50256])
-                print(f"  Span {j}: {span} => '{decoded}'")
-    else:
-        print("No bias_spans found in batch!")
+    #     # Optional: decode từng span
+    #     for i in range(batch["bias_spans"].shape[0]):
+    #         print(f"\nSample {i}:")
+    #         for j in range(batch["bias_spans"].shape[1]):
+    #             span = batch["bias_spans"][i, j].tolist()
+    #             if all(tok == 50256 for tok in span):
+    #                 continue
+    #             decoded = tokenizer.decode([tok for tok in span if tok != 50256])
+    #             print(f"  Span {j}: {span} => '{decoded}'")
+    # else:
+    #     print("No bias_spans found in batch!")
 
     # config = WhisperConfig.from_pretrained("openai/whisper-base.en")
     # model = WhisperMedicalForConditionalGeneration(config)
     
     # here
-    # model = WhisperForConditionalGenerationWeightCE.from_pretrained("openai/whisper-base.en")
-    # model.freeze_encoder()
+    model = WhisperForConditionalGenerationWeightCE.from_pretrained("openai/whisper-base.en")
+    model.freeze_encoder()
     
-    # model.config.forced_decoder_ids = None
-    # model.config.suppress_tokens = []
+    model.config.forced_decoder_ids = None
+    model.config.suppress_tokens = []
     
-    # root_path = "results/"
-    # os.makedirs(os.path.join(root_path), exist_ok=True)
+    root_path = "results/"
+    os.makedirs(os.path.join(root_path), exist_ok=True)
     
-    # training_args = Seq2SeqTrainingArguments(
-    #     output_dir=os.path.join(root_path, "models"),
-    #     per_device_train_batch_size=1,
-    #     per_device_eval_batch_size=1,
-    #     predict_with_generate=True,
-    #     generation_max_length=225,
-    #     remove_unused_columns=False,
-    #     gradient_accumulation_steps=8,
-    #     # evaluation_strategy="epoch",
-    #     # include_inputs_for_metrics=True,
-    #     include_for_metrics=["inputs"],
-    #     save_strategy="epoch",
-    #     logging_strategy="epoch",
-    #     learning_rate=1e-5,
-    #     num_train_epochs=10,
-    #     weight_decay=0.01,
-    #     warmup_steps=500,
-    #     # save_total_limit=3,
-    #     # load_best_model_at_end=True,
-    #     report_to = []
-    # )
+    training_args = Seq2SeqTrainingArguments(
+        output_dir=os.path.join(root_path, "models"),
+        per_device_train_batch_size=1,
+        per_device_eval_batch_size=1,
+        predict_with_generate=True,
+        generation_max_length=225,
+        remove_unused_columns=False,
+        gradient_accumulation_steps=8,
+        # evaluation_strategy="epoch",
+        # include_inputs_for_metrics=True,
+        include_for_metrics=["inputs"],
+        save_strategy="epoch",
+        logging_strategy="epoch",
+        learning_rate=1e-5,
+        num_train_epochs=10,
+        weight_decay=0.01,
+        warmup_steps=500,
+        # save_total_limit=3,
+        # load_best_model_at_end=True,
+        report_to = []
+    )
     
-    # trainer = Seq2SeqTrainer(
-    #     args=training_args,
-    #     model=model,
-    #     # train_dataset=data_train,
-    #     # eval_dataset=data_eval,
-    #     data_collator=data_collator,
-    #     tokenizer=processor.feature_extractor,
-    #     compute_metrics=compute_wer,
-    # )
+    trainer = Seq2SeqTrainer(
+        args=training_args,
+        model=model,
+        # train_dataset=data_train,
+        # eval_dataset=data_eval,
+        data_collator=data_collator,
+        tokenizer=processor.feature_extractor,
+        compute_metrics=compute_wer,
+    )
 
-    # if (len(data_test) == 0):
-    #     print("No test data found!")
-    #     exit(0)
-    # print("length of test data: ", len(data_test))
+    if (len(data_test) == 0):
+        print("No test data found!")
+        exit(0)
+    print("length of test data: ", len(data_test))
 
-    # print("Starting evaluation!")
-    # result = trainer.evaluate(data_test)
-    # print(result)
+    print("Starting evaluation!")
+    result = trainer.evaluate(data_test)
+    print(result)
     
     
     
