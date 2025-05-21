@@ -1,5 +1,6 @@
 from transformers import Seq2SeqTrainer
 from typing import Optional, Union, Any, Dict, Tuple
+import torch
 
 class CustomTrainer(Seq2SeqTrainer):
     def prediction_step(
