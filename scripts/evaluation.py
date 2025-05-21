@@ -18,7 +18,7 @@ from models.whisper_medical import WhisperMedicalForConditionalGeneration
 from data_utils.data_loader import PromptWhisperDataset
 from data_utils.data_collator import DataCollatorSpeechSeq2SeqWithPadding
 
-from utils.compute_metric import compute_wer, compute_metrics
+from utils.compute_metric import compute_wer
 
 from transformers import (
     Seq2SeqTrainingArguments,
