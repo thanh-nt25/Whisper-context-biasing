@@ -90,7 +90,12 @@ class BasicTextNormalizer:
 metric = evaluate.load("wer")
 
 def compute_wer(pred):
-    print("Typre of pred input: ", type(pred.inputs))
+    bias_spans = None
+    if hasattr(pred, "bias_spans"):
+        bias_spans = pred.bias_spans
+    if bias_spans is not None:
+      print("Bias span is not None")
+    # print("Typre of pred input: ", type(pred.inputs))
     # bias_spans = pred.inputs[0]
     # print("[DEBUG] bias_spans shape:", bias_spans.shape)
 
