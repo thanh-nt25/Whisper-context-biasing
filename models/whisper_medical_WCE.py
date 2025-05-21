@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from transformers import WhisperPreTrainedModel, WhisperGenerationMixin
+from transformers.models.whisper.modeling_whisper import WhisperPreTrainedModel, WhisperModel, shift_tokens_right
+from transformers.models.whisper.generation_whisper import WhisperGenerationMixin
 from transformers.modeling_outputs import Seq2SeqLMOutput
-from transformers.models.whisper.modeling_whisper import WhisperModel, shift_tokens_right
+from typing import Optional, Tuple, Union, List
 
 class WhisperForConditionalGenerationWeightCE(WhisperGenerationMixin, WhisperPreTrainedModel):
     base_model_prefix = "model"
