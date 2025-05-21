@@ -1,5 +1,9 @@
-# Trong file CustomTrainer.py
+# File: /kaggle/working/Whisper-context-biasing/trainer/CustomTrainer.py
+
+from transformers import Seq2SeqTrainer
+from transformers.trainer_utils import PredictionOutput
 from transformers.trainer_utils import EvalPrediction
+from typing import Dict, List, Optional, Union, Any
 import numpy as np
 
 # Định nghĩa lớp EvalPrediction tùy chỉnh
