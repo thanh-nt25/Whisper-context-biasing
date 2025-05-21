@@ -42,14 +42,12 @@ class CustomTrainer(Seq2SeqTrainer):
             dataloader, description, prediction_loss_only, ignore_keys, metric_key_prefix
         )
 
-
-
+        # Gắn bias_spans vào EvalPrediction
         if hasattr(self, "_stored_bias_spans"):
-            output = EvalPrediction(
+            return EvalPrediction(
                 predictions=output.predictions,
                 label_ids=output.label_ids,
                 metrics=output.metrics if hasattr(output, "metrics") else {}
-            )
-            output.bias_spans = self._stored_bias_spans  # ✅ Gắn tại đây
-
-        return output
+            ).__setattr__("bias_spans", self._stored_bias_spans) or output  # trick nhỏ để giữ kiểu
+        else:
+            return output
