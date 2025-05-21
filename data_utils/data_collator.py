@@ -106,8 +106,14 @@ class DataCollatorSpeechSeq2SeqWithPadding:
         if "bias_spans" in features[0]:
             raw_spans = [f["bias_spans"] for f in features]
 
-            max_span_len = max(max(len(span) for span in sample) for sample in raw_spans)
-            max_n_spans = max(len(sample) for sample in raw_spans)
+            max_span_len = max((len(span) for sample in raw_spans for span in sample), default=0)
+            max_n_spans = max((len(sample) for sample in raw_spans), default=0)
+
+            # Tránh lỗi nếu cả batch đều không có bias span
+            if max_span_len == 0 or max_n_spans == 0:
+                bias_tensor = torch.zeros((len(raw_spans), 1, 1), dtype=torch.long)
+                batch["bias_spans"] = bias_tensor
+                return batch
 
             fully_padded = [
                 [span + [self.processor.tokenizer.pad_token_id] * (max_span_len - len(span)) for span in sample]
