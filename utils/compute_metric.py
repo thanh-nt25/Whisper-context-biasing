@@ -89,38 +89,17 @@ class BasicTextNormalizer:
 # metric
 metric = evaluate.load("wer")
 
-def compute_wer(pred):
-    bias_spans = None
-    if hasattr(pred, "bias_spans"):
-        bias_spans = pred.bias_spans
+def compute_wer(pred, **kwargs):
+    bias_spans = kwargs.get("bias_spans", None)
+    
     if bias_spans is not None:
-      print("Bias span is not None")
-    else:
-      print(pred.bias_spans)
-    # print("Typre of pred input: ", type(pred.inputs))
-    # bias_spans = pred.inputs[0]
-    # print("[DEBUG] bias_spans shape:", bias_spans.shape)
-
-    # inputs = pred.inputs
-    # if isinstance(inputs, tuple):  # Nếu inputs là tuple (có thể do nhiều đầu vào)
-    #         input_ids = inputs[0]
-    # else:
-    #         input_ids = inputs
-
-    # print("This is fucking input: ", input_ids)
-    # inputs = pred.inputs
-    # if inputs is not None and isinstance(inputs, dict) and "bias_spans" in inputs:
-    #     bias_spans = inputs["bias_spans"]
-    #     if isinstance(bias_spans, torch.Tensor):
-    #         bias_spans = bias_spans.cpu().numpy()
-    # else:
-    #     bias_spans = None  # hoặc raise lỗi nếu cần
-
-    # # Sau đó xử lý bias_spans
-    # if bias_spans is not None:
-    #     print("Bias spans shape:", bias_spans.shape)
-    # else:
-    #     print("Bias spans not found")
+        try:
+            print(f"Có bias_spans với kích thước: {bias_spans.shape}")
+            # Logic tính bias WER ở đây
+            # bias_wer = calculate_bias_wer(pred_str, label_str, bias_spans)
+            # metrics["bias_wer"] = bias_wer
+        except Exception as e:
+            print(f"Lỗi khi tính bias WER: {e}")
 
     pred_ids = pred.predictions
     label_ids = pred.label_ids
