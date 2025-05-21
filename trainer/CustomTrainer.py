@@ -38,7 +38,18 @@ class CustomTrainer(Seq2SeqTrainer):
         return super().prediction_step(model, inputs, prediction_loss_only, ignore_keys)
         
     def evaluation_loop(self, dataloader, description, prediction_loss_only=None, ignore_keys=None, metric_key_prefix="eval"):
-        output = super().evaluation_loop(dataloader, description, prediction_loss_only, ignore_keys, metric_key_prefix)
+        output = super().evaluation_loop(
+            dataloader, description, prediction_loss_only, ignore_keys, metric_key_prefix
+        )
+
+
+
         if hasattr(self, "_stored_bias_spans"):
-            output.bias_spans = self._stored_bias_spans
+            output = EvalPrediction(
+                predictions=output.predictions,
+                label_ids=output.label_ids,
+                metrics=output.metrics if hasattr(output, "metrics") else {}
+            )
+            output.bias_spans = self._stored_bias_spans  # ✅ Gắn tại đây
+
         return output
