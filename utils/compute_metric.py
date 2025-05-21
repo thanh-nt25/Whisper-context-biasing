@@ -101,7 +101,7 @@ def compute_wer(pred):
     for spans in bias_tensor:
         span_list = []
         for span in spans:
-            token_ids = [i.item() for i in span if i.item() != pad_token_id]
+            token_ids = [i.item() for i in span if i.item() != 50256]
             if token_ids:
                 span_list.append(token_ids)
         bias_words_batch.append(span_list)
