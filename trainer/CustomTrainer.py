@@ -52,6 +52,7 @@ class CustomTrainer(Seq2SeqTrainer):
             metrics=output.metrics if hasattr(output, "metrics") else {}
         )
         if self._stored_bias_spans is not None:
+            print("Eval take bias span")
             eval_pred.bias_spans = self._stored_bias_spans
 
         return eval_pred
