@@ -5,6 +5,7 @@ from transformers.models.whisper.modeling_whisper import WhisperPreTrainedModel,
 from transformers.models.whisper.generation_whisper import WhisperGenerationMixin
 from transformers.modeling_outputs import Seq2SeqLMOutput
 from typing import Optional, Tuple, Union, List
+from transformers.cache_utils import EncoderDecoderCache
 
 class WhisperForConditionalGenerationWeightCE(WhisperGenerationMixin, WhisperPreTrainedModel):
     base_model_prefix = "model"
