@@ -31,7 +31,7 @@ from transformers import (
     WhisperConfig
 )
 
-from trainer.CustomTrainer import CustomTrainer
+# from trainer.CustomTrainer import CustomTrainer
 
 # sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "config")))
 from config.config import DATA_ROOT, DATA_DIR, JSONL_DATA
