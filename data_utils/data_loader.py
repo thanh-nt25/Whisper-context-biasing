@@ -175,7 +175,7 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                     "bias_spans": bias_spans
                 }
             else:
-                print("Not using prompt in datasets!")
+                # print("Not using prompt in datasets!")
                 start_of_transcript = self.tokenizer.convert_tokens_to_ids("<|startoftranscript|>")
                 
                 full_sequence = [start_of_transcript] + encoded_label
