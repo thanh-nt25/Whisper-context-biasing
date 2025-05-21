@@ -94,8 +94,8 @@ def compute_wer(pred):
     # global trainer  # Đảm bảo trainer được khai báo ở ngoài
     # bias_words_batch = trainer.current_bias_spans if hasattr(trainer, 'current_bias_spans') else []
     # bias_words_batch = pred.inputs["bias_spans"]
-    bias_tensor = pred.inputs["bias_spans"]  # (B, S, L)
-
+    bias_tensor = pred.inputs  # (B, S, L)
+    print(bias_tensor)
     # Chuyển thành danh sách để xử lý
     bias_words_batch = []
     for spans in bias_tensor:
