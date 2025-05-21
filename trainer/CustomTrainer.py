@@ -1,4 +1,5 @@
 from transformers import Seq2SeqTrainer, Seq2SeqTrainingArguments, EvalPrediction
+from transformers.trainer_utils import EvalPrediction
 from typing import Optional, Dict, Any
 import torch
 from torch.nn import CrossEntropyLoss
@@ -6,7 +7,8 @@ from torch.nn import CrossEntropyLoss
 class CustomTrainer(Seq2SeqTrainer):
     def __init__(self, *args, bias_spans_dataset: Optional[Any] = None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.bias_spans_dataset = bias_spans_dataset  # List of bias spans per sample
+        self.bias_spans_dataset = bias_spans_dataset  # Optional external reference
+        self._stored_bias_spans = None
 
     def compute_loss(self, model, inputs, return_outputs=False):
         labels = inputs.get("labels")
@@ -23,8 +25,9 @@ class CustomTrainer(Seq2SeqTrainer):
             bias_mask = torch.zeros_like(labels, dtype=torch.float)
             for i, spans in enumerate(bias_spans_batch):
                 for span in spans:
+                    span_tensor = torch.tensor(span, device=labels.device)
                     for j in range(labels.size(1) - len(span) + 1):
-                        if torch.equal(labels[i, j:j+len(span)], torch.tensor(span, device=labels.device)):
+                        if torch.equal(labels[i, j:j+len(span)], span_tensor):
                             bias_mask[i, j:j+len(span)] = 1.0
             weights = 1.0 + 4.0 * bias_mask
             loss = loss * weights
@@ -36,18 +39,19 @@ class CustomTrainer(Seq2SeqTrainer):
         if hasattr(self.data_collator, "bias_spans_batch"):
             self._stored_bias_spans = self.data_collator.bias_spans_batch
         return super().prediction_step(model, inputs, prediction_loss_only, ignore_keys)
-        
+
     def evaluation_loop(self, dataloader, description, prediction_loss_only=None, ignore_keys=None, metric_key_prefix="eval"):
         output = super().evaluation_loop(
             dataloader, description, prediction_loss_only, ignore_keys, metric_key_prefix
         )
 
-        # Gắn bias_spans vào EvalPrediction
-        if hasattr(self, "_stored_bias_spans"):
-            return EvalPrediction(
-                predictions=output.predictions,
-                label_ids=output.label_ids,
-                metrics=output.metrics if hasattr(output, "metrics") else {}
-            ).__setattr__("bias_spans", self._stored_bias_spans) or output  # trick nhỏ để giữ kiểu
-        else:
-            return output
+        # Đảm bảo bias_spans được gắn vào EvalPrediction
+        eval_pred = EvalPrediction(
+            predictions=output.predictions,
+            label_ids=output.label_ids,
+            metrics=output.metrics if hasattr(output, "metrics") else {}
+        )
+        if self._stored_bias_spans is not None:
+            eval_pred.bias_spans = self._stored_bias_spans
+
+        return eval_pred
