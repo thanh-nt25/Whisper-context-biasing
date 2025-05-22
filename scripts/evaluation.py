@@ -5,6 +5,7 @@ import torch
 import gc
 from pathlib import Path
 import sys
+from tqdm import tqdm
 
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -82,8 +83,8 @@ def main():
         raise ValueError("Test dataset is empty")
     print(f"Test data length: {len(data_test)}")
 
-    print("Loading raw bias spans:")
-    bias_spans = [data_test[i]["bias_spans"] for i in range(len(data_test))]
+    
+    bias_spans = [data_test[i]["bias_spans"] for i in tqdm(range(len(data_test)), desc="Collecting bias spans", total=len(data_test))]
     
     model_id = args.hub_model_id if args.hub_model_id else "openai/whisper-base.en"
     print(f"Loading model from: {model_id}")

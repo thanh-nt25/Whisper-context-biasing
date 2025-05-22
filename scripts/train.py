@@ -3,6 +3,7 @@ import os
 import gc
 import torch
 from pathlib import Path
+from tqdm import tqdm
 import sys
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, PROJECT_ROOT)
@@ -15,6 +16,7 @@ from transformers import Seq2SeqTrainingArguments, Seq2SeqTrainer, WhisperProces
 from config.config import DATA_ROOT, DATA_DIR, JSONL_DATA
 from huggingface_hub import snapshot_download, HfApi
 from transformers.trainer_callback import TrainerCallback
+from transformers import EarlyStoppingCallback
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train Whisper medical model with context biasing")
@@ -126,15 +128,15 @@ def main():
     print(f"Eval data length: {len(data_eval)}")
     print(f"Test data length: {len(data_test)}")
     
-    bias_spans = [data_test[i]["bias_spans"] for i in range(len(data_test))]
+    bias_spans = [data_test[i]["bias_spans"] for i in tqdm(range(len(data_test)), desc="Collecting bias spans", total=len(data_test))]
 
     # Calculate steps
-    iteration_steps = int(len(data_train) * args.epoch // (args.batch * 8))  # Account for gradient_accumulation_steps=8
-    eval_step = int((len(data_train) // 2) // (args.batch * 8))
-    log_step = int((len(data_train) // 50) // (args.batch * 8))
-    print(f"Max steps: {iteration_steps}")
-    print(f"Eval step: {eval_step}")
-    print(f"Log step: {log_step}")
+    # iteration_steps = int(len(data_train) * args.epoch // (args.batch * 2))  # Account for gradient_accumulation_steps=8
+    # eval_step = int((len(data_train) // 2) // (args.batch * 2))
+    # log_step = int((len(data_train) // 50) // (args.batch * 2))
+    # print(f"Max steps: {iteration_steps}")
+    # print(f"Eval step: {eval_step}")
+    # print(f"Log step: {log_step}")
 
     # Set output directory
     output_dir = args.output if args.output else os.path.join("/kaggle/working", "results")
@@ -172,18 +174,18 @@ def main():
         output_dir=output_dir,
         per_device_train_batch_size=args.batch,
         per_device_eval_batch_size=2,
-        gradient_accumulation_steps=8,
+        gradient_accumulation_steps=4,
         learning_rate=args.lr,
         num_train_epochs=args.epoch,
-        max_steps=iteration_steps,
-        warmup_steps=100,
-        weight_decay=0.01,
+        max_steps=-1,
+        warmup_steps=500,
+        weight_decay=0.05,
         eval_strategy="steps",
-        eval_steps=eval_step,
-        save_steps=eval_step,
+        eval_steps=500,
+        save_steps=500,
         save_strategy="steps",
         logging_strategy="steps",
-        logging_steps=log_step,
+        logging_steps=50,
         save_total_limit=1,
         load_best_model_at_end=True, # load best eval wer result
         metric_for_best_model="wer",
@@ -215,6 +217,7 @@ def main():
         compute_metrics=compute_wer,
     )
     trainer.add_callback(PushToHubOnSaveCallback())
+    trainer.add_callback(EarlyStoppingCallback(early_stopping_patience=3))
 
     # Train
     print("Starting training...")
