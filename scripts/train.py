@@ -146,16 +146,33 @@ def main():
     model_source = args.hub_model_id if args.resume else "openai/whisper-base.en"
     print(f"Loading model from: {model_source}")
 
+    # Tải checkpoint từ Hugging Face Hub nếu resume=True và output_dir trống
     if args.resume and not os.listdir(output_dir):
         sync_from_hub(repo_id=model_source, local_dir=output_dir, token=args.hf_token)
 
+    # Tìm checkpoint mới nhất trong output_dir
+    checkpoint_dir = None
+    if args.resume:
+        checkpoints = [d for d in os.listdir(output_dir) if d.startswith("checkpoint-")]
+        if checkpoints:
+            checkpoint_dir = max(checkpoints, key=lambda x: int(x.split("-")[1]))
+            checkpoint_dir = os.path.join(output_dir, checkpoint_dir)
+            print(f"Tiếp tục huấn luyện từ checkpoint: {checkpoint_dir}")
+        else:
+            print("Không tìm thấy checkpoint trong output_dir, load mô hình từ model_source")
+
+    # Khởi tạo mô hình
     try:
-        model = WhisperForConditionalGenerationWeightCE.from_pretrained(model_source, bias_weight=args.bias_weight)
+        # Nếu có checkpoint, load từ checkpoint; nếu không, load từ model_source
+        model = WhisperForConditionalGenerationWeightCE.from_pretrained(
+            checkpoint_dir if checkpoint_dir else model_source,
+            bias_weight=args.bias_weight
+        )
         model.freeze_encoder()
         model.config.forced_decoder_ids = None
         model.config.suppress_tokens = []
     except Exception as e:
-        raise RuntimeError(f"Failed to load model from {model_source}: {str(e)}")
+        raise RuntimeError(f"Failed to load model: {str(e)}")
       
     # Verify trainable parameters
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -221,7 +238,7 @@ def main():
 
     # Train
     print("Starting training...")
-    trainer.train()
+    trainer.train(resume_from_checkpoint=checkpoint_dir if checkpoint_dir else None)
 
     # Evaluate on test set
     data_collator.training = False  # Disable bias_spans for evaluation
