@@ -82,6 +82,7 @@ def main():
         raise ValueError("Test dataset is empty")
     print(f"Test data length: {len(data_test)}")
 
+    print("Loading raw bias spans:")
     bias_spans = [data_test[i]["bias_spans"] for i in range(len(data_test))]
     
     model_id = args.hub_model_id if args.hub_model_id else "openai/whisper-base.en"
@@ -135,6 +136,7 @@ def main():
     if args.refs_pred_file is not None:
       print("Calculating bias WER...")
       refs_pred_file = args.refs_pred_file
+      print("ref and pred file path:", refs_pred_file)
       bias_wer_result = compute_bias_wer(refs_pred_file, bias_spans, tokenizer)
       print("Bias WER result:", bias_wer_result)
 
