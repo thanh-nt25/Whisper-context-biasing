@@ -97,7 +97,7 @@ def main():
     # Training arguments for evaluation
     training_args = Seq2SeqTrainingArguments(
         output_dir=args.output,
-        per_device_eval_batch_size=args.batch,
+        per_device_eval_batch_size=8,
         predict_with_generate=True,
         generation_max_length=225,
         remove_unused_columns=False,
