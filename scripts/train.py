@@ -10,7 +10,7 @@ sys.path.insert(0, PROJECT_ROOT)
 from models.whisper_medical import WhisperForConditionalGenerationWeightCE
 from data_utils.data_loader import PromptWhisperDataset
 from data_utils.data_collator import DataCollatorSpeechSeq2SeqWithPadding
-from utils.compute_metric import compute_wer
+from utils.compute_metric import compute_wer, compute_bias_wer
 from transformers import Seq2SeqTrainingArguments, Seq2SeqTrainer, WhisperProcessor
 from config.config import DATA_ROOT, DATA_DIR, JSONL_DATA
 from huggingface_hub import snapshot_download, HfApi
@@ -125,6 +125,8 @@ def main():
     print(f"Train data length: {len(data_train)}")
     print(f"Eval data length: {len(data_eval)}")
     print(f"Test data length: {len(data_test)}")
+    
+    bias_spans = [data_test[i]["bias_spans"] for i in range(len(data_test))]
 
     # Calculate steps
     iteration_steps = int(len(data_train) * args.epoch // (args.batch * 8))  # Account for gradient_accumulation_steps=8
@@ -152,6 +154,14 @@ def main():
         model.config.suppress_tokens = []
     except Exception as e:
         raise RuntimeError(f"Failed to load model from {model_source}: {str(e)}")
+      
+    # Verify trainable parameters
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    total_params = sum(p.numel() for p in model.parameters())
+    print(f"Trainable parameters: {trainable_params}")
+    print(f"Total parameters: {total_params}")
+    if trainable_params == 0:
+        raise ValueError("No trainable parameters in the model. Check freeze_encoder() or model configuration.")
 
     wandb_project = "whisper-default"  # Fallback project name
     if args.hub_model_id:
@@ -221,6 +231,18 @@ def main():
     with open(results_file, "w") as f:
         json.dump(result, f, indent=4)
     print(f"Saved evaluation results to {results_file}")
+    
+    # Tính bias_wer
+    print("Calculating bias WER...")
+    refs_pred_file = os.path.join(output_dir, "refs_and_pred.txt")
+    bias_wer_result = compute_bias_wer(refs_pred_file, bias_spans, tokenizer)
+    print("Bias WER result:", bias_wer_result)
+
+    # Lưu bias_wer vào JSON
+    bias_wer_file = os.path.join(output_dir, "bias_wer_results.json")
+    with open(bias_wer_file, "w") as f:
+        json.dump(bias_wer_result, f, indent=4)
+    print(f"Saved bias WER results to {bias_wer_file}")
 
     # Upload results to Hugging Face Hub
     upload_results_to_hub(
@@ -229,7 +251,14 @@ def main():
         hub_path="results/test_results.json",
         token=args.hf_token
     )
-
+    
+    upload_results_to_hub(
+        results_file=bias_wer_file,
+        repo_id=training_args.hub_model_id,
+        hub_path="results/bias_wer_results.json",
+        token=args.hf_token
+    )
+    
     # Clean up
     gc.collect()
     torch.cuda.empty_cache()
