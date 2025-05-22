@@ -97,8 +97,8 @@ def main():
     except Exception as e:
         raise RuntimeError(f"Failed to load model from {model_id}: {str(e)}")
 
-    
-    os.makedirs(args.output, exist_ok=True)
+    output_dir = args.output if args.output else os.path.join("/kaggle/working", "results")
+    os.makedirs(output_dir, exist_ok=True)
 
     
     training_args = Seq2SeqTrainingArguments(

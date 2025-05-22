@@ -189,10 +189,10 @@ def compute_bias_wer(refs_pred_file, bias_spans, tokenizer):
         while i < len(lines):
             if lines[i].startswith('Ref :'):
                 ref = lines[i][6:].strip()
-                print(ref)
+                # print(ref)
                 if i + 1 < len(lines) and lines[i + 1].startswith('Pred:'):
                     pred = lines[i + 1][6:].strip()
-                    print(pred)
+                    # print(pred)
                     refs.append(ref)
                     preds.append(pred)
                     i += 3  # Bỏ qua dòng trống
