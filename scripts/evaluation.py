@@ -29,7 +29,7 @@ def parse_args():
     parser.add_argument("--only_eval_bias_wer", action="store_true", help="param for eval bias_wer only")
     parser.add_argument("--batch", type=int, default=8, help="Evaluation batch size")
     parser.add_argument("--hub_model_id", type=str, default=None, help="Hugging Face model ID (optional; defaults to openai/whisper-base.en)")
-    parser.add_argument("--refs_pred_file", type=str, require=True, default=None, help="Path to refs and pred")
+    parser.add_argument("--refs_pred_file", type=str, required=True, default=None, help="Path to refs and pred")
     return parser.parse_args()
 
 def main():
