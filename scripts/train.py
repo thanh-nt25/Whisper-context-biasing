@@ -21,18 +21,25 @@ from transformers import EarlyStoppingCallback
 def parse_args():
     parser = argparse.ArgumentParser(description="Train Whisper medical model with context biasing")
     parser.add_argument("--output", type=str, default="/kaggle/working/results", help="Output directory for results")
-    parser.add_argument("--bias_weight", type=float, default=1.5, help="Bias weight for weighted cross-entropy")
     parser.add_argument("--data_root", type=str, default=DATA_ROOT, help="Base input data directory")
     parser.add_argument("--data_dir", type=str, default=DATA_DIR, help="Middle input data directory")
     parser.add_argument("--jsonl_data", type=str, default=JSONL_DATA, help="Path to JSONL metadata")
-    parser.add_argument("--prompt", action="store_true", help="Use prompt in decoder")
-    parser.add_argument("--random", action="store_true", help="Apply context perturbation")
+    parser.add_argument("--refs_pred_file", type=str, required=False, default=None, help="Path to refs and pred")
+
+    parser.add_argument("--bias_weight", type=float, default=1.5, help="Bias weight for weighted cross-entropy")
     parser.add_argument("--batch", type=int, default=8, help="Training batch size")
     parser.add_argument("--epoch", type=int, default=10, help="Number of training epochs")
     parser.add_argument("--lr", type=float, default=1e-5, help="Learning rate")
+
     parser.add_argument("--hub_model_id", type=str, required=True, help="Hugging Face id for saving")
     parser.add_argument("--hf_token", type=str, required=True, help="Hugging Face token")
     parser.add_argument("--resume", action="store_true", help="Resume from Hugging Face Hub if output_dir is empty")
+    
+    parser.add_argument("--prompt", action="store_true", help="Use prompt in decoder")
+    parser.add_argument("--random", action="store_true", help="Apply context perturbation")
+    parser.add_argument("--bias_list", action="store_true", help="active all bias list prompt")
+    parser.add_argument("--bias_nums", type=int, default=0, help="number of bias words")
+
     return parser.parse_args()
 
 def sync_from_hub(repo_id, local_dir, token):
@@ -99,7 +106,10 @@ def main():
         audio_type=".mp3",
         tokenizer=processor.tokenizer,
         prompt=args.prompt,
-        random=args.random
+        random=args.random,
+        bias_list=args.bias_list,
+        bias_nums=args.bias_nums
+
     )
     data_eval = PromptWhisperDataset(
         base_path=os.path.join(args.data_root, args.data_dir),
@@ -109,7 +119,9 @@ def main():
         audio_type=".mp3",
         tokenizer=processor.tokenizer,
         prompt=args.prompt,
-        random=args.random
+        random=args.random,
+        bias_list=args.bias_list,
+        bias_nums=args.bias_nums
     )
     data_test = PromptWhisperDataset(
         base_path=os.path.join(args.data_root, args.data_dir),
@@ -119,7 +131,9 @@ def main():
         audio_type=".mp3",
         tokenizer=processor.tokenizer,
         prompt=args.prompt,
-        random=args.random
+        random=args.random,
+        bias_list=args.bias_list,
+        bias_nums=args.bias_nums
     )
 
     if len(data_train) == 0 or len(data_eval) == 0 or len(data_test) == 0:
