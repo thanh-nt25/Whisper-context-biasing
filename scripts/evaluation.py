@@ -1,194 +1,134 @@
 import argparse
 import os
-import librosa
+import json
 import torch
 import gc
-import json
 from pathlib import Path
-from torch.utils.data import DataLoader
 import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# Add project root to path
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, PROJECT_ROOT)
 
 from models.whisper_medical import WhisperForConditionalGenerationWeightCE
-
 from data_utils.data_loader import PromptWhisperDataset
 from data_utils.data_collator import DataCollatorSpeechSeq2SeqWithPadding
-
 from utils.compute_metric import compute_wer
-
-from transformers import (
-    Seq2SeqTrainingArguments,
-    TrainingArguments,
-    Seq2SeqTrainer,
-    GenerationConfig,
-    WhisperFeatureExtractor,
-    WhisperTokenizer,
-    WhisperProcessor,
-    WhisperConfig
-)
-
-# from trainer.CustomTrainer import CustomTrainer
-
-# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "config")))
+from transformers import Seq2SeqTrainingArguments, Seq2SeqTrainer, WhisperProcessor
 from config.config import DATA_ROOT, DATA_DIR, JSONL_DATA
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Evaluate Whisper medical model with context biasing")
+    parser.add_argument("--output", type=str, default="/kaggle/working/results", help="Output directory for results")
+    parser.add_argument("--bias_weight", type=float, default=1.5, help="Bias weight for weighted cross-entropy")
+    parser.add_argument("--data_root", type=str, default=DATA_ROOT, help="Base input data directory")
+    parser.add_argument("--data_dir", type=str, default=DATA_DIR, help="Subdirectory for audio files")
+    parser.add_argument("--jsonl_data", type=str, default=JSONL_DATA, help="Path to JSONL metadata")
+    parser.add_argument("--prompt", action="store_true", help="Use prompt in decoder")
+    parser.add_argument("--random", action="store_true", help="Apply context perturbation (5% random prompt)")
+    parser.add_argument("--batch", type=int, default=8, help="Evaluation batch size")
+    parser.add_argument("--hub_model_id", type=str, default=None, help="Hugging Face model ID (optional; defaults to openai/whisper-base.en)")
+    return parser.parse_args()
 
+def main():
+    args = parse_args()
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Evaluation whisper medical")
-    parser.add_argument("--output", type=str, default=None, help="output path")
-    parser.add_argument("--bias_weight", type=float, default=1.5, help="Bias weight of Weight Cross Entropy")
-    parser.add_argument("--data_root", type=str, default=DATA_ROOT, help="base input data dir")
-    parser.add_argument("--data_dir", type=str, default=DATA_DIR, help="middle input data dir")
-    parser.add_argument("--jsonl_data", type=str, default=JSONL_DATA, help="path to jsonl metadata")
-    parser.add_argument("--prompt", action="store_true", help="whether to use prompt to decoder")
-    parser.add_argument("--random", action="store_true", help="context perturbation")
-    parser.add_argument('--batch', type=int, default=8, help="batch size")
-    parser.add_argument('--epoch', type=int, default=10, help="batch size")
-    parser.add_argument('--lr', type=float, default=1e-4, help="learning rate")
-    
-    args = parser.parse_args()
-    
-    args.random = True # 5% random prompt
-    
-    print("Bool of using prompt: ", args.prompt)
-    print("Bool of using random: ", args.random)
-    
+    # Set device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print("Device:", device)
-    
-    # args.prompt = True
-    
-    feature_extractor = WhisperFeatureExtractor.from_pretrained(f'openai/whisper-base.en')
-    tokenizer = WhisperTokenizer.from_pretrained(f'openai/whisper-base.en', language='en', task='transcribe')
-    processor = WhisperProcessor.from_pretrained(f'openai/whisper-base.en', language='en', task='transcribe')
-    
+    print(f"Device: {device}")
+    print(f"Using prompt: {args.prompt}")
+    print(f"Using random context perturbation: {args.random}")
+
+    # Initialize processor
+    processor = WhisperProcessor.from_pretrained("openai/whisper-base.en", language="en", task="transcribe")
+    start_token_id = processor.tokenizer.convert_tokens_to_ids("<|startoftranscript|>")
+    prev_token_id = processor.tokenizer.convert_tokens_to_ids("<|startofprev|>")
+    if start_token_id is None or prev_token_id is None:
+        raise ValueError("Special tokens <|startoftranscript|> or <|startofprev|> not found in tokenizer vocabulary")
+
+    # Initialize data collator
     data_collator = DataCollatorSpeechSeq2SeqWithPadding(
         processor=processor,
-        decoder_start_token_id=tokenizer.convert_tokens_to_ids("<|startoftranscript|>"),
-        decoder_prev_token_id=tokenizer.convert_tokens_to_ids("<|startofprev|>"),
-
+        decoder_start_token_id=start_token_id,
+        decoder_prev_token_id=prev_token_id,
     )
-    
-    # "/kaggle/input/medical-syn-med-test/medical-united-syn-med-test"
-    
-    print("DATA_ROOT:", args.data_root)
-    print("DATA_DIR:", args.data_dir)
-    print("JSONL_DATA:", args.jsonl_data)
-    
-    print("Starting loading data!")
-    # data_train = PromptWhisperDataset(base_path=os.path.join(data_root,data_dir), phase='train', feature_extractor=feature_extractor, audio_type=".mp3", tokenizer=tokenizer, prompt=args.prompt, random=args.random)
-    # data_eval = PromptWhisperDataset(base_path=os.path.join(data_root,data_dir), phase='dev', feature_extractor=feature_extractor, audio_type=".mp3", tokenizer=tokenizer, prompt=args.prompt, basic=args.basic)
-    data_test = PromptWhisperDataset(base_path=os.path.join(args.data_root, args.data_dir), jsonl_data=args.jsonl_data, phase='test', 
-                                     feature_extractor=feature_extractor, audio_type=".mp3", tokenizer=tokenizer, prompt=args.prompt, random=args.prompt)    
-    # sample = data_test[0]
-    
-    # print(sample['input_features'])
-    # print(sample['labels'])
-    
-    # print(sample['input_features'].shape)
-    # print(sample['labels'].shape)
-    
-    # print("Decoded labels:", tokenizer.decode(sample['labels'], skip_special_tokens=False))
-    
-    # print("pad_token:", tokenizer.pad_token)            # <|endoftext|>
-    # print("pad_token_id:", tokenizer.pad_token_id)      # 50256
-    # print("eos_token:", tokenizer.eos_token)            # <|endoftext|>
-    # print("eos_token_id:", tokenizer.eos_token_id)      # 50256
-    # print("tokenizer.decode([50258]): ", tokenizer.decode([50258]))
-    # print("tokenizer.decode([50256]): ", tokenizer.decode([50256]))
-    # print("tokenizer.decode([50257]): ", tokenizer.decode([50257]))
-    # print("tokenizer.decode([50358]): ", tokenizer.decode([50358]))
-    # print("tokenizer.decode([50362]): ", tokenizer.decode([50362]))
-    # print("tokenizer.decode([0]): ", tokenizer.decode([0]))
-    # print("tokenizer.decode([50359]): ", tokenizer.decode([50359]))
-    # print("tokenizer.decode([50361]): ", tokenizer.decode([50361]))
+    data_collator.training = False  # Disable bias_spans for evaluation
 
-    # dataloader = DataLoader(
-    #     dataset=data_test,
-    #     batch_size=25,  # hoặc 1, tùy bạn muốn kiểm tra bao nhiêu sample
-    #     collate_fn=data_collator,
-    #     shuffle=False
-    # )
-    
-    # batch = next(iter(dataloader))
+    # Validate data paths
+    print(f"DATA_ROOT: {args.data_root}")
+    print(f"DATA_DIR: {args.data_dir}")
+    print(f"JSONL_DATA: {args.jsonl_data}")
+    test_jsonl = os.path.join(args.jsonl_data, "test.jsonl")
+    if not os.path.isfile(test_jsonl):
+        raise FileNotFoundError(f"Test JSONL file not found: {test_jsonl}")
 
-    # # In thông tin batch
-    # print("Keys in batch:", batch.keys())
-    # print("Shape of input_features:", batch["input_features"].shape)
-    # print("Shape of labels:", batch["labels"].shape)
+    # Load test dataset
+    print("Loading test dataset...")
+    data_test = PromptWhisperDataset(
+        base_path=os.path.join(args.data_root, args.data_dir),
+        jsonl_data=args.jsonl_data,
+        phase="test",
+        feature_extractor=processor.feature_extractor,
+        audio_type=".mp3",
+        tokenizer=processor.tokenizer,
+        prompt=args.prompt,
+        random=args.random
+    )
+    if len(data_test) == 0:
+        raise ValueError("Test dataset is empty")
+    print(f"Test data length: {len(data_test)}")
 
-    # # In bias_spans
-    # if "bias_spans" in batch:
-    #     print("Shape of bias_spans:", batch["bias_spans"].shape)
-    #     print("bias_spans:")
-    #     print(batch["bias_spans"])
+    # Initialize model
+    model_id = args.hub_model_id if args.hub_model_id else "openai/whisper-base.en"
+    print(f"Loading model from: {model_id}")
+    try:
+        model = WhisperForConditionalGenerationWeightCE.from_pretrained(model_id, bias_weight=args.bias_weight)
+        model.config.use_cache = False  # Disable caching for evaluation
+        model.freeze_encoder()
+        model.config.forced_decoder_ids = None
+        model.config.suppress_tokens = []
+        model.to(device)
+    except Exception as e:
+        raise RuntimeError(f"Failed to load model from {model_id}: {str(e)}")
 
-    #     # Optional: decode từng span
-    #     for i in range(batch["bias_spans"].shape[0]):
-    #         print(f"\nSample {i}:")
-    #         for j in range(batch["bias_spans"].shape[1]):
-    #             span = batch["bias_spans"][i, j].tolist()
-    #             if all(tok == 50256 for tok in span):
-    #                 continue
-    #             decoded = tokenizer.decode([tok for tok in span if tok != 50256])
-    #             print(f"  Span {j}: {span} => '{decoded}'")
-    # else:
-    #     print("No bias_spans found in batch!")
+    # Set up output directory
+    os.makedirs(args.output, exist_ok=True)
 
-    # config = WhisperConfig.from_pretrained("openai/whisper-base.en")
-    # model = WhisperMedicalForConditionalGeneration(config)
-    
-    # here
-    model = WhisperForConditionalGenerationWeightCE.from_pretrained("openai/whisper-base.en")
-    model.freeze_encoder()
-    
-    model.config.forced_decoder_ids = None
-    model.config.suppress_tokens = []
-    
-    root_path = "results/"
-    os.makedirs(os.path.join(root_path), exist_ok=True)
-    
+    # Training arguments for evaluation
     training_args = Seq2SeqTrainingArguments(
-        output_dir=os.path.join(root_path, "models"),
-        per_device_train_batch_size=1,
-        per_device_eval_batch_size=1,
+        output_dir=args.output,
+        per_device_eval_batch_size=args.batch,
         predict_with_generate=True,
         generation_max_length=225,
         remove_unused_columns=False,
-        gradient_accumulation_steps=8,
-        # evaluation_strategy="epoch",
-        # include_inputs_for_metrics=True,
-        include_for_metrics=["inputs"],
-        save_strategy="epoch",
-        logging_strategy="epoch",
-        learning_rate=1e-5,
-        num_train_epochs=10,
-        weight_decay=0.01,
-        warmup_steps=500,
-        # save_total_limit=3,
-        # load_best_model_at_end=True,
-        report_to = []
+        fp16=torch.cuda.is_available(),
+        report_to=[],
     )
-    
+
+    # Initialize trainer
     trainer = Seq2SeqTrainer(
         args=training_args,
         model=model,
-        # train_dataset=data_train,
-        # eval_dataset=data_eval,
+        eval_dataset=data_test,
         data_collator=data_collator,
-        tokenizer=processor.feature_extractor,
+        tokenizer=processor.tokenizer,
         compute_metrics=compute_wer,
     )
 
-    if (len(data_test) == 0):
-        print("No test data found!")
-        exit(0)
-    print("length of test data: ", len(data_test))
+    # Evaluate
+    print("Starting evaluation...")
+    result = trainer.evaluate()
+    print("Test set evaluation results:", result)
 
-    print("Starting evaluation!")
-    result = trainer.evaluate(data_test)
-    print(result)
-    
-    
-    
+    # Save results to JSON
+    results_file = os.path.join(args.output, "test_results.json")
+    with open(results_file, "w") as f:
+        json.dump(result, f, indent=4)
+    print(f"Saved evaluation results to {results_file}")
+
+    # Clean up
+    gc.collect()
+    torch.cuda.empty_cache()
+
+if __name__ == "__main__":
+    main()

@@ -18,7 +18,7 @@ from transformers.trainer_callback import TrainerCallback
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train Whisper medical model with context biasing")
-    parser.add_argument("--output", type=str, default=None, help="Output directory path")
+    parser.add_argument("--output", type=str, default="/kaggle/working/results", help="Output directory for results")
     parser.add_argument("--bias_weight", type=float, default=1.5, help="Bias weight for weighted cross-entropy")
     parser.add_argument("--data_root", type=str, default=DATA_ROOT, help="Base input data directory")
     parser.add_argument("--data_dir", type=str, default=DATA_DIR, help="Middle input data directory")
@@ -28,6 +28,7 @@ def parse_args():
     parser.add_argument("--batch", type=int, default=8, help="Training batch size")
     parser.add_argument("--epoch", type=int, default=10, help="Number of training epochs")
     parser.add_argument("--lr", type=float, default=1e-5, help="Learning rate")
+    parser.add_argument("--hub_model_id", type=str, required=True, help="Hugging Face id for saving")
     parser.add_argument("--hf_token", type=str, required=True, help="Hugging Face token")
     parser.add_argument("--resume", action="store_true", help="Resume from Hugging Face Hub if output_dir is empty")
     return parser.parse_args()
@@ -138,7 +139,7 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
 
     # Initialize model
-    model_source = "thanh-nt25/whisper-medical-biasing" if args.resume else "openai/whisper-base.en"
+    model_source = args.hub_model_id if args.resume else "openai/whisper-base.en"
     print(f"Loading model from: {model_source}")
 
     if args.resume and not os.listdir(output_dir):
@@ -151,6 +152,10 @@ def main():
         model.config.suppress_tokens = []
     except Exception as e:
         raise RuntimeError(f"Failed to load model from {model_source}: {str(e)}")
+
+    wandb_project = "whisper-default"  # Fallback project name
+    if args.hub_model_id:
+        wandb_project = args.hub_model_id.split("/")[-1]
 
     # Training arguments
     training_args = Seq2SeqTrainingArguments(
@@ -170,7 +175,7 @@ def main():
         logging_strategy="steps",
         logging_steps=log_step,
         save_total_limit=1,
-        load_best_model_at_end=True,
+        load_best_model_at_end=True, # load best eval wer result
         metric_for_best_model="wer",
         greater_is_better=False,
         predict_with_generate=True,
@@ -180,10 +185,12 @@ def main():
         fp16=True,
         dataloader_num_workers=1,
         push_to_hub=True,
-        hub_model_id="thanh-nt25/whisper-medical-biasing",
+        hub_model_id=args.hub_model_id,
         hub_strategy="every_save",
         push_to_hub_token=args.hf_token,
-        report_to=["wandb"]
+        report_to=["wandb"],
+        wandb_project=wandb_project,  
+        run_name=f"run-{output_dir.split('/')[-1]}"
     )
 
     # Initialize trainer
@@ -208,6 +215,20 @@ def main():
     print("Starting final evaluation on test set...")
     result = trainer.evaluate(data_test)
     print("Test set evaluation results:", result)
+    
+    # Save evaluation results to JSON
+    results_file = os.path.join(output_dir, "test_results.json")
+    with open(results_file, "w") as f:
+        json.dump(result, f, indent=4)
+    print(f"Saved evaluation results to {results_file}")
+
+    # Upload results to Hugging Face Hub
+    upload_results_to_hub(
+        results_file=results_file,
+        repo_id=training_args.hub_model_id,
+        hub_path="results/test_results.json",
+        token=args.hf_token
+    )
 
     # Clean up
     gc.collect()
