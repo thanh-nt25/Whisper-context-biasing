@@ -205,7 +205,8 @@ def compute_bias_wer(refs_pred_file, bias_spans, tokenizer):
     total_tokens = 0
     bias_wer_list = []
 
-    for idx, (ref, pred, spans) in enumerate(zip(refs, preds, bias_spans)):
+    # Thêm tqdm để theo dõi tiến trình đánh giá
+    for idx, (ref, pred, spans) in enumerate(tqdm(zip(refs, preds, bias_spans), total=len(refs), desc="Evaluating bias WER")):
         # Decode bias_spans thành bias_words
         bias_words = [tokenizer.decode(span, skip_special_tokens=True).lower() for span in spans]
         if not bias_words:
