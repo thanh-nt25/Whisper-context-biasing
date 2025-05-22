@@ -1,13 +1,11 @@
 import numpy as np
 import os
-
 import torch
 import torchaudio.transforms as at
 import torchaudio
 import editdistance
 import av
 import librosa
-
 import json
 import random
 
@@ -58,20 +56,25 @@ def load_wave(wave_path, sample_rate: int = 16000) -> torch.Tensor:
     return wav
 
 class PromptWhisperDataset(torch.utils.data.Dataset):
-    def __init__(self, base_path, jsonl_data, phase, feature_extractor, tokenizer, prompt=False, audio_type=".wav", sample_rate=16000, random=False):
+    def __init__(self, base_path, jsonl_data, phase, feature_extractor, tokenizer, prompt=False, bias_list=False, audio_type=".wav", sample_rate=16000, random=False, bias_nums=0):
         super().__init__()
         self.phase = phase
         self.base_path = base_path
         self.jsonl_data = jsonl_data
         self.sample_rate = sample_rate
-        self.prompt = prompt
+        self.prompt = prompt  # Kích hoạt chiến lược 1 hoặc 3
+        self.bias_list = bias_list  # Kích hoạt chiến lược 2 hoặc 3
         self.random_prompt = random
+        self.bias_nums = bias_nums  # Số lượng từ trong dãy bias, mặc định 0
         self.data = []
         self.prompt_pool = []
+        self.bias_pool = set()  # Pool cho bias words
+        self.non_bias_pool = set()  # Pool cho từ không phải bias
         self.audio_type = audio_type
         self._load_data()
         self.feature_extractor = feature_extractor
         self.tokenizer = tokenizer
+        self._initialize_pools()  # Khởi tạo pool bias và non-bias
 
     def _initialize_prompt_pool(self):
         # Initialize the prompt pool with a list of prompts
@@ -91,7 +94,33 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                         self.prompt_pool.append(prompt)
                 except json.JSONDecodeError:
                     print(f"[WARNING] Ignore JSON line: {line.strip()}")
-            
+
+    def _initialize_pools(self):
+        # Khởi tạo pool bias và non-bias từ toàn bộ dữ liệu phase
+        jsonl_path = os.path.join(self.jsonl_data, f"{self.phase}.jsonl")
+        with open(jsonl_path, "r", encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    json_data = json.loads(line)
+                    bias_words = json_data.get("bias_words", [])
+                    text = json_data.get("text", "").lower()
+                    for word in bias_words:
+                        self.bias_pool.add(word.lower())
+                    # Thêm từ không phải bias từ transcript, loại bỏ dấu chấm, phẩy và các ký tự đặc biệt
+                    words = text.split()
+                    non_bias_words = []
+                    for w in words:
+                        # Loại bỏ các ký tự đặc biệt khỏi từ
+                        cleaned_word = ''.join(char for char in w if char not in [",", "?", ".", "!", ";"])
+                        # Chỉ thêm từ nếu không nằm trong bias_pool và không rỗng sau khi loại bỏ ký tự
+                        if cleaned_word and cleaned_word not in self.bias_pool:
+                            non_bias_words.append(cleaned_word)
+                    self.non_bias_pool.update(non_bias_words)
+                except json.JSONDecodeError:
+                    print(f"[WARNING] Ignore JSON line: {line.strip()}")
+
     def _load_data(self):
         jsonl_path = os.path.join(self.jsonl_data, f"{self.phase}.jsonl")
 
@@ -126,18 +155,16 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.data)
-    
-    # input feature
-    # labels = prompt + labels
+
     def __getitem__(self, id):
         audio_filename, prompt, random_prompt, raw_text, bias_words = self.data[id]
         audio_path = os.path.join(self.base_path, self.phase, audio_filename)
-        
-        bias_spans = [] # list per sample
+
+        bias_spans = []  # list per sample
         for word in bias_words:
-          ids = self.tokenizer.encode(word.lower(), add_special_tokens=False)
-          if ids:
-              bias_spans.append(ids)
+            ids = self.tokenizer.encode(word.lower(), add_special_tokens=False)
+            if ids:
+                bias_spans.append(ids)
 
         try:
             audio, sr = librosa.load(audio_path, sr=self.sample_rate)
@@ -145,49 +172,164 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
             processed_audio = torch.tensor(processed_audio[0])
 
             # Encode label (transcript)
-            encoded_label = self.tokenizer.encode(raw_text.lower(), add_special_tokens=False)
+            # encoded_label = self.tokenizer.encode(raw_text.lower(), add_special_tokens=False)
+            encoded_label = self.tokenizer.encode(raw_text.lower())
 
-            if self.prompt:
-                # print("Using prompt in datasets!")
-                if self.random_prompt and 'train' in self.phase:
-                    if torch.rand([]) < 0.05:
-                        prompt_text = random_prompt
-                    else:
-                        prompt_text = prompt
-                else:
-                    prompt_text = prompt
+            # Khởi tạo full_sequence_tensor mặc định
+            start_of_transcript = self.tokenizer.convert_tokens_to_ids("<|startoftranscript|>")
+            # full_sequence = [start_of_transcript] + encoded_label
+            full_sequence = encoded_label
+            full_sequence_tensor = torch.tensor(full_sequence)
 
-                encoded_prompt = self.tokenizer.encode(prompt_text.lower(), add_special_tokens=False)
-
-                if len(encoded_prompt) > 190:
-                    encoded_prompt = encoded_prompt[:190]
-
-                # Add special tokens between prompt and label
+            if self.prompt or self.bias_list:
                 start_of_prev = self.tokenizer.convert_tokens_to_ids("<|startofprev|>")
-                start_of_transcript = self.tokenizer.convert_tokens_to_ids("<|startoftranscript|>")
 
-                full_sequence = [start_of_prev] + encoded_prompt + [start_of_transcript] + encoded_label
-                full_sequence_tensor = torch.tensor(full_sequence)
+                # Chiến lược 1: Chỉ description (prompt=True, bias_list=False)
+                if self.prompt and not self.bias_list:
+                    if not self.random_prompt or 'train' not in self.phase:
+                        prompt_text = prompt
+                    else:
+                        if torch.rand([]) < 0.05:
+                            prompt_text = random_prompt
+                        else:
+                            prompt_text = prompt
 
-                return {
-                    "input_features": processed_audio,
-                    "labels": full_sequence_tensor,
-                    "bias_spans": bias_spans
-                }
-            else:
-                # print("Not using prompt in datasets!")
-                start_of_transcript = self.tokenizer.convert_tokens_to_ids("<|startoftranscript|>")
-                
-                full_sequence = [start_of_transcript] + encoded_label
-                full_sequence_tensor = torch.tensor(full_sequence)
+                    if prompt_text:
+                        encoded_prompt = self.tokenizer.encode(prompt_text.lower(), add_special_tokens=False)
+                        if len(encoded_prompt) > 190:
+                            encoded_prompt = encoded_prompt[:190]
+                    else:
+                        encoded_prompt = []
 
-                return {
-                    "input_features": processed_audio,
-                    "labels": full_sequence_tensor,
-                    "bias_spans": bias_spans
-                }
-                
-                # raise ValueError("prompt must be used.")
+                    # full_sequence = [start_of_prev] + encoded_prompt + [start_of_transcript] + encoded_label
+                    full_sequence = [start_of_prev] + encoded_prompt + encoded_label
+                    full_sequence_tensor = torch.tensor(full_sequence)
+
+                # Chiến lược 2: Chỉ bias list (prompt=False, bias_list=True)
+                elif not self.prompt and self.bias_list and self.bias_nums > 0:
+                    bias_words_list = []
+                    if self.bias_pool and self.non_bias_pool:
+                        # 5% xác suất chỉ chứa từ thông thường
+                        if torch.rand([]) < 0.05:
+                            bias_words_list = random.sample(list(self.non_bias_pool), self.bias_nums)
+                        else:
+                            # Ưu tiên thêm bias words của sample hiện tại
+                            if bias_words:
+                                bias_words_list.extend([word.lower() for word in bias_words])
+
+                            # Tính số lượng bias words cần thiết để đạt 30%
+                            total_bias_needed = max(1, int(self.bias_nums * 0.3))
+                            num_bias_to_add = total_bias_needed - len(bias_words_list)
+                            if num_bias_to_add > 0 and self.bias_pool:
+                                available_bias = list(self.bias_pool - set(bias_words_list))
+                                if available_bias:
+                                    bias_words_list.extend(random.sample(available_bias, min(num_bias_to_add, len(available_bias))))
+
+                            # Bổ sung từ non-bias để đạt tổng bias_nums từ
+                            num_remaining = self.bias_nums - len(bias_words_list)
+                            if num_remaining > 0 and self.non_bias_pool:
+                                available_non_bias = list(self.non_bias_pool - set(bias_words_list))
+                                if available_non_bias:
+                                    bias_words_list.extend(random.sample(available_non_bias, min(num_remaining, len(available_non_bias))))
+
+                        # Đảm bảo đúng bias_nums từ
+                        if len(bias_words_list) > self.bias_nums:
+                            bias_words_list = bias_words_list[:self.bias_nums]
+                        while len(bias_words_list) < self.bias_nums and self.non_bias_pool:
+                            available_non_bias = list(self.non_bias_pool - set(bias_words_list))
+                            if available_non_bias:
+                                bias_words_list.append(random.choice(available_non_bias))
+
+                        # Encode dãy bias word, thêm dấu cách giữa các từ
+                        space_token = self.tokenizer.encode(" ", add_special_tokens=False)
+                        encoded_bias = []
+                        for i, word in enumerate(bias_words_list):
+                            encoded_word = self.tokenizer.encode(word, add_special_tokens=False)
+                            encoded_bias.extend(encoded_word)
+                            if i < len(bias_words_list) - 1:  # Thêm dấu cách giữa các từ, trừ từ cuối
+                                encoded_bias.extend(space_token)
+
+                        # full_sequence = [start_of_prev] + encoded_bias + [start_of_transcript] + encoded_label
+                        full_sequence = [start_of_prev] + encoded_bias + encoded_label
+                        full_sequence_tensor = torch.tensor(full_sequence)
+                    else:
+                        print(f"Warning: bias_pool or non_bias_pool is empty for sample {id}, using default label")
+                        # full_sequence = [start_of_transcript] + encoded_label
+                        full_sequence = encoded_label
+                        full_sequence_tensor = torch.tensor(full_sequence)
+
+                # Chiến lược 3: Description + "Relate terms:" + Bias List (prompt=True, bias_list=True)
+                elif self.prompt and self.bias_list and self.bias_nums > 0:
+                    if not self.random_prompt or 'train' not in self.phase:
+                        prompt_text = prompt
+                    else:
+                        if torch.rand([]) < 0.05:
+                            prompt_text = random_prompt
+                        else:
+                            prompt_text = prompt
+
+                    if prompt_text:
+                        encoded_prompt = self.tokenizer.encode(prompt_text.lower(), add_special_tokens=False)
+                        if len(encoded_prompt) > 150:
+                            encoded_prompt = encoded_prompt[:150]
+                    else:
+                        encoded_prompt = []
+
+                    # Encode "Relate terms:"
+                    relate_terms = self.tokenizer.encode("Relate terms: ", add_special_tokens=False)
+
+                    # Tạo và encode bias list
+                    bias_words_list = []
+                    if self.bias_pool and self.non_bias_pool:
+                        # 5% xác suất chỉ chứa từ thông thường
+                        if torch.rand([]) < 0.05:
+                            bias_words_list = random.sample(list(self.non_bias_pool), self.bias_nums)
+                        else:
+                            # Ưu tiên thêm bias words của sample hiện tại
+                            if bias_words:
+                                bias_words_list.extend([word.lower() for word in bias_words])
+
+                            # Tính số lượng bias words cần thiết để đạt 30%
+                            total_bias_needed = max(1, int(self.bias_nums * 0.3))
+                            num_bias_to_add = total_bias_needed - len(bias_words_list)
+                            if num_bias_to_add > 0 and self.bias_pool:
+                                available_bias = list(self.bias_pool - set(bias_words_list))
+                                if available_bias:
+                                    bias_words_list.extend(random.sample(available_bias, min(num_bias_to_add, len(available_bias))))
+
+                            # Bổ sung từ non-bias để đạt tổng bias_nums từ
+                            num_remaining = self.bias_nums - len(bias_words_list)
+                            if num_remaining > 0 and self.non_bias_pool:
+                                available_non_bias = list(self.non_bias_pool - set(bias_words_list))
+                                if available_non_bias:
+                                    bias_words_list.extend(random.sample(available_non_bias, min(num_remaining, len(available_non_bias))))
+
+                        # Đảm bảo đúng bias_nums từ
+                        if len(bias_words_list) > self.bias_nums:
+                            bias_words_list = bias_words_list[:self.bias_nums]
+                        while len(bias_words_list) < self.bias_nums and self.non_bias_pool:
+                            available_non_bias = list(self.non_bias_pool - set(bias_words_list))
+                            if available_non_bias:
+                                bias_words_list.append(random.choice(available_non_bias))
+
+                        # Encode dãy bias word, thêm dấu cách giữa các từ
+                        space_token = self.tokenizer.encode(" ", add_special_tokens=False)
+                        encoded_bias = []
+                        for i, word in enumerate(bias_words_list):
+                            encoded_word = self.tokenizer.encode(word, add_special_tokens=False)
+                            encoded_bias.extend(encoded_word)
+                            if i < len(bias_words_list) - 1:  # Thêm dấu cách giữa các từ, trừ từ cuối
+                                encoded_bias.extend(space_token)
+
+                    # Nối description + "Relate terms:" + bias list + label
+                    # full_sequence = [start_of_prev] + encoded_prompt + relate_terms + encoded_bias + [start_of_transcript] + encoded_label
+                    full_sequence = [start_of_prev] + encoded_prompt + relate_terms + encoded_bias + encoded_label
+                    full_sequence_tensor = torch.tensor(full_sequence)                    
+            return {
+                "input_features": processed_audio,
+                "labels": full_sequence_tensor,
+                "bias_spans": bias_spans
+            }
 
         except Exception as e:
             print(f"Error processing sample {id}, file: {audio_path}, error: {str(e)}")

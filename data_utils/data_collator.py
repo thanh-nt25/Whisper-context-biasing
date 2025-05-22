@@ -86,6 +86,7 @@ class DataCollatorSpeechSeq2SeqWithPadding:
         # shift labels to the right to get decoder input ids
         labels = labels_batch["input_ids"]
         # decoder_input_ids are the labels shifted to the right (for teacher forcing)
+        # chon tat ca cac cot tru cot cuoi cung
         decoder_input_ids = labels[:, :-1]
         labels = labels[:, 1:]
         
