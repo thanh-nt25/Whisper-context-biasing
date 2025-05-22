@@ -196,7 +196,7 @@ def main():
         num_train_epochs=args.epoch,
         max_steps=-1,
         warmup_steps=500,
-        weight_decay=0.05,
+        weight_decay=0.01,
         eval_strategy="steps",
         eval_steps=300,
         save_steps=300,
