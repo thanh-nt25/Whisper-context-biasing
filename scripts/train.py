@@ -201,8 +201,8 @@ def main():
         hub_strategy="every_save",
         push_to_hub_token=args.hf_token,
         report_to=["wandb"],
-        wandb_project=wandb_project,  
-        run_name=f"run-{output_dir.split('/')[-1]}"
+        # wandb_project=wandb_project,  
+        # run_name=f"run-{output_dir.split('/')[-1]}"
     )
 
     # Initialize trainer
