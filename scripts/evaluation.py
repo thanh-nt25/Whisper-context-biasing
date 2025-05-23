@@ -30,7 +30,7 @@ def parse_args():
     parser.add_argument("--batch", type=int, default=8, help="Evaluation batch size")
     parser.add_argument("--hub_model_id", type=str, required=True, help="Hugging Face model ID of the trained model")
     parser.add_argument("--checkpoint_dir", type=str, default=None, help="Local checkpoint directory (optional, overrides hub_model_id)")
-    parser.add_argument("--refs_pred_file", type=str, required=True, help="Path to refs and pred")
+    parser.add_argument("--refs_pred_file", type=str, required=False, default=None, help="Path to refs and pred")
     return parser.parse_args()
 
 def main():
