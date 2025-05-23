@@ -14,7 +14,7 @@ from models.whisper_medical import WhisperForConditionalGenerationWeightCE
 from data_utils.data_loader import PromptWhisperDataset
 from data_utils.data_collator import DataCollatorSpeechSeq2SeqWithPadding
 from utils.compute_metric import compute_wer, compute_bias_wer
-from transformers import Seq2SeqTrainingArguments, Seq2SeqTrainer, WhisperProcessor, WhisperTokenizer
+from transformers import Seq2SeqTrainingArguments, Seq2SeqTrainer, WhisperProcessor, WhisperTokenizer, GenerationConfig
 from config.config import DATA_ROOT, DATA_DIR, JSONL_DATA
 from huggingface_hub import snapshot_download
 
@@ -162,10 +162,21 @@ def main():
         print(f"Loading final pre-trained model from: {args.hub_model_id}")
         try:
             final_model = WhisperForConditionalGenerationWeightCE.from_pretrained(args.hub_model_id, bias_weight=args.bias_weight)
-            # Xóa hoàn toàn forced_decoder_ids khỏi cấu hình
-            if hasattr(final_model.config, "forced_decoder_ids"):
+            # Giải pháp tạm thời từ GitHub
+            if hasattr(final_model.config, 'forced_decoder_ids'):
                 print("Removing forced_decoder_ids from final_model config")
-                delattr(final_model.config, "forced_decoder_ids")
+                final_model.config.forced_decoder_ids = None
+            if hasattr(final_model, 'generation_config'):
+                if hasattr(final_model.generation_config, 'forced_decoder_ids'):
+                    print("Removing forced_decoder_ids from final_model generation_config")
+                    final_model.generation_config.forced_decoder_ids = None
+            final_model.generation_config = GenerationConfig(
+                max_length=225,  # Sử dụng generation_max_length từ training_args
+                pad_token_id=processor.tokenizer.pad_token_id,
+                eos_token_id=processor.tokenizer.eos_token_id,
+                decoder_start_token_id=final_model.config.decoder_start_token_id,
+                use_cache=False
+            )
             final_model.config.use_cache = False  
             final_model.freeze_encoder()
             final_model.config.suppress_tokens = []
@@ -204,15 +215,23 @@ def main():
             print(f"Loading best checkpoint from: {best_checkpoint}")
             try:
                 best_model = WhisperForConditionalGenerationWeightCE.from_pretrained(best_checkpoint, bias_weight=args.bias_weight)
-                # Xóa hoàn toàn forced_decoder_ids khỏi cấu hình
-                if hasattr(best_model.config, "forced_decoder_ids"):
+                # Giải pháp tạm thời từ GitHub
+                if hasattr(best_model.config, 'forced_decoder_ids'):
                     print("Removing forced_decoder_ids from best_model config")
-                    delattr(best_model.config, "forced_decoder_ids")
+                    best_model.config.forced_decoder_ids = None
+                if hasattr(best_model, 'generation_config'):
+                    if hasattr(best_model.generation_config, 'forced_decoder_ids'):
+                        print("Removing forced_decoder_ids from best_model generation_config")
+                        best_model.generation_config.forced_decoder_ids = None
+                best_model.generation_config = GenerationConfig(
+                    max_length=225,  # Sử dụng generation_max_length từ training_args
+                    pad_token_id=processor.tokenizer.pad_token_id,
+                    eos_token_id=processor.tokenizer.eos_token_id,
+                    decoder_start_token_id=best_model.config.decoder_start_token_id,
+                    use_cache=False
+                )
                 best_model.config.use_cache = False  
                 best_model.freeze_encoder()
-                # best_model.generation_config.language = "<|en|>"
-                # best_model.generation_config.task = "transcribe"
-                best_model.config.forced_decoder_ids = None
                 best_model.config.suppress_tokens = []
                 best_model.to(device)
             except Exception as e:
