@@ -162,6 +162,10 @@ def main():
         print(f"Loading final pre-trained model from: {args.hub_model_id}")
         try:
             final_model = WhisperForConditionalGenerationWeightCE.from_pretrained(args.hub_model_id, bias_weight=args.bias_weight)
+            # Xóa hoàn toàn forced_decoder_ids khỏi cấu hình
+            if hasattr(final_model.config, "forced_decoder_ids"):
+                print("Removing forced_decoder_ids from final_model config")
+                delattr(final_model.config, "forced_decoder_ids")
             final_model.config.use_cache = False  
             final_model.freeze_encoder()
             final_model.config.suppress_tokens = []
@@ -200,12 +204,17 @@ def main():
             print(f"Loading best checkpoint from: {best_checkpoint}")
             try:
                 best_model = WhisperForConditionalGenerationWeightCE.from_pretrained(best_checkpoint, bias_weight=args.bias_weight)
+                # Xóa hoàn toàn forced_decoder_ids khỏi cấu hình
+                if hasattr(best_model.config, "forced_decoder_ids"):
+                    print("Removing forced_decoder_ids from best_model config")
+                    delattr(best_model.config, "forced_decoder_ids")
                 best_model.config.use_cache = False  
                 best_model.freeze_encoder()
                 best_model.config.suppress_tokens = []
                 best_model.to(device)
             except Exception as e:
                 print(f"Failed to load best checkpoint from {best_checkpoint}: {str(e)}")
+                raise
             else:
                 training_args_best = Seq2SeqTrainingArguments(
                     output_dir=os.path.join(output_dir, "best_checkpoint"),
