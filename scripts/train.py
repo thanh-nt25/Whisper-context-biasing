@@ -24,7 +24,7 @@ from models.whisper_medical import WhisperForConditionalGenerationWeightCE
 from data_utils.data_loader import PromptWhisperDataset
 from data_utils.data_collator import DataCollatorSpeechSeq2SeqWithPadding
 from utils.compute_metric import compute_wer, compute_bias_wer
-from transformers import Seq2SeqTrainingArguments, Seq2SeqTrainer, WhisperProcessor
+from transformers import Seq2SeqTrainingArguments, Seq2SeqTrainer, WhisperProcessor, GenerationConfig
 from config.config import DATA_ROOT, DATA_DIR, JSONL_DATA
 from huggingface_hub import snapshot_download, HfApi
 from transformers.trainer_callback import TrainerCallback
