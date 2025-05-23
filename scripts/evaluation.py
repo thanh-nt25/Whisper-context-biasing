@@ -7,7 +7,6 @@ from pathlib import Path
 import sys
 from tqdm import tqdm
 
-
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, PROJECT_ROOT)
 
@@ -29,20 +28,19 @@ def parse_args():
     parser.add_argument("--random", action="store_true", help="Apply context perturbation (5% random prompt)")
     parser.add_argument("--only_eval_bias_wer", action="store_true", help="param for eval bias_wer only")
     parser.add_argument("--batch", type=int, default=8, help="Evaluation batch size")
-    parser.add_argument("--hub_model_id", type=str, default=None, help="Hugging Face model ID (optional; defaults to openai/whisper-base.en)")
-    parser.add_argument("--refs_pred_file", type=str, required=True, default=None, help="Path to refs and pred")
+    parser.add_argument("--hub_model_id", type=str, required=True, help="Hugging Face model ID of the trained model")
+    parser.add_argument("--checkpoint_dir", type=str, default=None, help="Local checkpoint directory (optional, overrides hub_model_id)")
+    parser.add_argument("--refs_pred_file", type=str, required=True, help="Path to refs and pred")
     return parser.parse_args()
 
 def main():
     args = parse_args()
 
-    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
     print(f"Using prompt: {args.prompt}")
     print(f"Using random context perturbation: {args.random}")
 
-    
     processor = WhisperProcessor.from_pretrained("openai/whisper-base.en", language="en", task="transcribe")
     tokenizer = WhisperTokenizer.from_pretrained("openai/whisper-base.en", language="en", task="transcribe")
 
@@ -51,7 +49,6 @@ def main():
     if start_token_id is None or prev_token_id is None:
         raise ValueError("Special tokens <|startoftranscript|> or <|startofprev|> not found in tokenizer vocabulary")
 
-    
     data_collator = DataCollatorSpeechSeq2SeqWithPadding(
         processor=processor,
         decoder_start_token_id=start_token_id,
@@ -59,7 +56,6 @@ def main():
     )
     data_collator.training = False  
 
-    
     print(f"DATA_ROOT: {args.data_root}")
     print(f"DATA_DIR: {args.data_dir}")
     print(f"JSONL_DATA: {args.jsonl_data}")
@@ -67,7 +63,6 @@ def main():
     if not os.path.isfile(test_jsonl):
         raise FileNotFoundError(f"Test JSONL file not found: {test_jsonl}")
 
-    
     print("Loading test dataset...")
     data_test = PromptWhisperDataset(
         base_path=os.path.join(args.data_root, args.data_dir),
@@ -83,72 +78,70 @@ def main():
         raise ValueError("Test dataset is empty")
     print(f"Test data length: {len(data_test)}")
 
-    
     bias_spans = [data_test[i]["bias_spans"] for i in tqdm(range(len(data_test)), desc="Collecting bias spans", total=len(data_test))]
-    
-    model_id = args.hub_model_id if args.hub_model_id else "openai/whisper-base.en"
-    print(f"Loading model from: {model_id}")
+
+    # Chọn model đã train từ hub_model_id hoặc checkpoint_dir
+    model_source = args.checkpoint_dir if args.checkpoint_dir else args.hub_model_id
+    print(f"Loading pre-trained model from: {model_source}")
     try:
-        model = WhisperForConditionalGenerationWeightCE.from_pretrained(model_id, bias_weight=args.bias_weight)
+        model = WhisperForConditionalGenerationWeightCE.from_pretrained(model_source, bias_weight=args.bias_weight)
         model.config.use_cache = False  
         model.freeze_encoder()
         model.config.forced_decoder_ids = None
         model.config.suppress_tokens = []
         model.to(device)
     except Exception as e:
-        raise RuntimeError(f"Failed to load model from {model_id}: {str(e)}")
+        raise RuntimeError(f"Failed to load model from {model_source}: {str(e)}")
 
     output_dir = args.output if args.output else os.path.join("/kaggle/working", "results")
     os.makedirs(output_dir, exist_ok=True)
 
-    
+    # Cấu hình chỉ cho evaluation
     training_args = Seq2SeqTrainingArguments(
         output_dir=args.output,
-        per_device_eval_batch_size=8,
+        per_device_eval_batch_size=args.batch,
         predict_with_generate=True,
         generation_max_length=225,
         remove_unused_columns=False,
         fp16=torch.cuda.is_available(),
         report_to=[],
+        do_train=False,  # Tắt chế độ train
+        do_eval=True,    # Chỉ thực hiện evaluation
     )
 
-    
     trainer = Seq2SeqTrainer(
         args=training_args,
         model=model,
         eval_dataset=data_test,
         data_collator=data_collator,
         tokenizer=processor.tokenizer,
-        compute_metrics=compute_wer,
+        compute_metrics=compute_wer if not args.only_eval_bias_wer else None,
     )
 
     if not args.only_eval_bias_wer:
-      print("Starting evaluation both wer and bias_wer...")
-      result = trainer.evaluate(data_test)
-      print("Test set evaluation results:", result)
+        print("Starting evaluation for WER...")
+        result = trainer.evaluate()
+        print("Test set evaluation results:", result)
 
-      
-      results_file = os.path.join(args.output, "test_results.json")
-      with open(results_file, "w") as f:
-          json.dump(result, f, indent=4)
-      print(f"Saved evaluation results to {results_file}")
+        results_file = os.path.join(args.output, "test_results.json")
+        with open(results_file, "w") as f:
+            json.dump(result, f, indent=4)
+        print(f"Saved evaluation results to {results_file}")
 
-    
     if args.refs_pred_file is not None:
-      print("Calculating bias WER...")
-      refs_pred_file = args.refs_pred_file
-      print("ref and pred file path:", refs_pred_file)
-      bias_wer_result = compute_bias_wer(refs_pred_file, bias_spans, tokenizer)
-      print("Bias WER result:", bias_wer_result)
+        print("Calculating bias WER...")
+        refs_pred_file = args.refs_pred_file
+        print("ref and pred file path:", refs_pred_file)
+        bias_wer_result = compute_bias_wer(refs_pred_file, bias_spans, tokenizer)
+        print("Bias WER result:", bias_wer_result)
 
-      bias_wer_file = os.path.join(output_dir, "bias_wer_results.json")
-      with open(bias_wer_file, "w") as f:
-          json.dump(bias_wer_result, f, indent=4)
-      print(f"Saved bias WER results to {bias_wer_file}")
+        bias_wer_file = os.path.join(output_dir, "bias_wer_results.json")
+        with open(bias_wer_file, "w") as f:
+            json.dump(bias_wer_result, f, indent=4)
+        print(f"Saved bias WER results to {bias_wer_file}")
     else:
-      print("Not found file refs and pred for evalutation bias wer!")
+        print("Not found file refs and pred for evaluation bias wer!")
 
-    
     gc.collect()
     torch.cuda.empty_cache()
 
