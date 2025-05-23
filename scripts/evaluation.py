@@ -124,7 +124,7 @@ def main():
 
     if not args.only_eval_bias_wer:
       print("Starting evaluation both wer and bias_wer...")
-      result = trainer.evaluate()
+      result = trainer.evaluate(data_test)
       print("Test set evaluation results:", result)
 
       
