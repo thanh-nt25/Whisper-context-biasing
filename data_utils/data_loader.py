@@ -77,7 +77,7 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
         self._initialize_pools()  # Khởi tạo pool bias và non-bias
 
     def _initialize_prompt_pool(self):
-        # Initialize the prompt pool with a list of prompts
+        # Initialize the prompt pool with a list of full prompts
         jsonl_path = os.path.join("data", self.jsonl_data, f"{self.phase}.jsonl")
 
         if not os.path.isfile(jsonl_path):
@@ -96,7 +96,7 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                     print(f"[WARNING] Ignore JSON line: {line.strip()}")
 
     def _initialize_pools(self):
-        # Khởi tạo pool bias và non-bias từ toàn bộ dữ liệu phase
+        # init bias pool and non bias pool
         jsonl_path = os.path.join(self.jsonl_data, f"{self.phase}.jsonl")
         with open(jsonl_path, "r", encoding="utf-8") as f:
             for line in f:
@@ -108,13 +108,10 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                     text = json_data.get("text", "").lower()
                     for word in bias_words:
                         self.bias_pool.add(word.lower())
-                    # Thêm từ không phải bias từ transcript, loại bỏ dấu chấm, phẩy và các ký tự đặc biệt
                     words = text.split()
                     non_bias_words = []
                     for w in words:
-                        # Loại bỏ các ký tự đặc biệt khỏi từ
                         cleaned_word = ''.join(char for char in w if char not in [",", "?", ".", "!", ";"])
-                        # Chỉ thêm từ nếu không nằm trong bias_pool và không rỗng sau khi loại bỏ ký tự
                         if cleaned_word and cleaned_word not in self.bias_pool:
                             non_bias_words.append(cleaned_word)
                     self.non_bias_pool.update(non_bias_words)
@@ -175,7 +172,7 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
             # encoded_label = self.tokenizer.encode(raw_text.lower(), add_special_tokens=False)
             encoded_label = self.tokenizer.encode(raw_text.lower())
 
-            # Khởi tạo full_sequence_tensor mặc định
+            # default full sequence
             start_of_transcript = self.tokenizer.convert_tokens_to_ids("<|startoftranscript|>")
             # full_sequence = [start_of_transcript] + encoded_label
             full_sequence = encoded_label
@@ -184,7 +181,7 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
             if self.prompt or self.bias_list:
                 start_of_prev = self.tokenizer.convert_tokens_to_ids("<|startofprev|>")
 
-                # Chiến lược 1: Chỉ description (prompt=True, bias_list=False)
+                # Only description
                 if self.prompt and not self.bias_list:
                     if not self.random_prompt or 'train' not in self.phase:
                         prompt_text = prompt
@@ -205,19 +202,17 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                     full_sequence = [start_of_prev] + encoded_prompt + encoded_label
                     full_sequence_tensor = torch.tensor(full_sequence)
 
-                # Chiến lược 2: Chỉ bias list (prompt=False, bias_list=True)
+                # only bias list, 30% bias, 70% non bias
                 elif not self.prompt and self.bias_list and self.bias_nums > 0:
                     bias_words_list = []
                     if self.bias_pool and self.non_bias_pool:
-                        # 5% xác suất chỉ chứa từ thông thường
                         if torch.rand([]) < 0.05:
                             bias_words_list = random.sample(list(self.non_bias_pool), self.bias_nums)
                         else:
-                            # Ưu tiên thêm bias words của sample hiện tại
+                            # add bias of current sample
                             if bias_words:
                                 bias_words_list.extend([word.lower() for word in bias_words])
 
-                            # Tính số lượng bias words cần thiết để đạt 30%
                             total_bias_needed = max(1, int(self.bias_nums * 0.3))
                             num_bias_to_add = total_bias_needed - len(bias_words_list)
                             if num_bias_to_add > 0 and self.bias_pool:
@@ -225,14 +220,12 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                                 if available_bias:
                                     bias_words_list.extend(random.sample(available_bias, min(num_bias_to_add, len(available_bias))))
 
-                            # Bổ sung từ non-bias để đạt tổng bias_nums từ
                             num_remaining = self.bias_nums - len(bias_words_list)
                             if num_remaining > 0 and self.non_bias_pool:
                                 available_non_bias = list(self.non_bias_pool - set(bias_words_list))
                                 if available_non_bias:
                                     bias_words_list.extend(random.sample(available_non_bias, min(num_remaining, len(available_non_bias))))
 
-                        # Đảm bảo đúng bias_nums từ
                         if len(bias_words_list) > self.bias_nums:
                             bias_words_list = bias_words_list[:self.bias_nums]
                         while len(bias_words_list) < self.bias_nums and self.non_bias_pool:
@@ -240,13 +233,12 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                             if available_non_bias:
                                 bias_words_list.append(random.choice(available_non_bias))
 
-                        # Encode dãy bias word, thêm dấu cách giữa các từ
                         space_token = self.tokenizer.encode(" ", add_special_tokens=False)
                         encoded_bias = []
                         for i, word in enumerate(bias_words_list):
                             encoded_word = self.tokenizer.encode(word, add_special_tokens=False)
                             encoded_bias.extend(encoded_word)
-                            if i < len(bias_words_list) - 1:  # Thêm dấu cách giữa các từ, trừ từ cuối
+                            if i < len(bias_words_list) - 1: 
                                 encoded_bias.extend(space_token)
 
                         # full_sequence = [start_of_prev] + encoded_bias + [start_of_transcript] + encoded_label
@@ -258,7 +250,7 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                         full_sequence = encoded_label
                         full_sequence_tensor = torch.tensor(full_sequence)
 
-                # Chiến lược 3: Description + "Relate terms:" + Bias List (prompt=True, bias_list=True)
+                # bias list + description
                 elif self.prompt and self.bias_list and self.bias_nums > 0:
                     if not self.random_prompt or 'train' not in self.phase:
                         prompt_text = prompt
@@ -275,21 +267,16 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                     else:
                         encoded_prompt = []
 
-                    # Encode "Relate terms:"
                     relate_terms = self.tokenizer.encode("Relate terms: ", add_special_tokens=False)
 
-                    # Tạo và encode bias list
                     bias_words_list = []
                     if self.bias_pool and self.non_bias_pool:
-                        # 5% xác suất chỉ chứa từ thông thường
                         if torch.rand([]) < 0.05:
                             bias_words_list = random.sample(list(self.non_bias_pool), self.bias_nums)
                         else:
-                            # Ưu tiên thêm bias words của sample hiện tại
                             if bias_words:
                                 bias_words_list.extend([word.lower() for word in bias_words])
 
-                            # Tính số lượng bias words cần thiết để đạt 30%
                             total_bias_needed = max(1, int(self.bias_nums * 0.3))
                             num_bias_to_add = total_bias_needed - len(bias_words_list)
                             if num_bias_to_add > 0 and self.bias_pool:
@@ -297,14 +284,12 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                                 if available_bias:
                                     bias_words_list.extend(random.sample(available_bias, min(num_bias_to_add, len(available_bias))))
 
-                            # Bổ sung từ non-bias để đạt tổng bias_nums từ
                             num_remaining = self.bias_nums - len(bias_words_list)
                             if num_remaining > 0 and self.non_bias_pool:
                                 available_non_bias = list(self.non_bias_pool - set(bias_words_list))
                                 if available_non_bias:
                                     bias_words_list.extend(random.sample(available_non_bias, min(num_remaining, len(available_non_bias))))
 
-                        # Đảm bảo đúng bias_nums từ
                         if len(bias_words_list) > self.bias_nums:
                             bias_words_list = bias_words_list[:self.bias_nums]
                         while len(bias_words_list) < self.bias_nums and self.non_bias_pool:
@@ -312,16 +297,15 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                             if available_non_bias:
                                 bias_words_list.append(random.choice(available_non_bias))
 
-                        # Encode dãy bias word, thêm dấu cách giữa các từ
                         space_token = self.tokenizer.encode(" ", add_special_tokens=False)
                         encoded_bias = []
                         for i, word in enumerate(bias_words_list):
                             encoded_word = self.tokenizer.encode(word, add_special_tokens=False)
                             encoded_bias.extend(encoded_word)
-                            if i < len(bias_words_list) - 1:  # Thêm dấu cách giữa các từ, trừ từ cuối
+                            if i < len(bias_words_list) - 1: 
                                 encoded_bias.extend(space_token)
 
-                    # Nối description + "Relate terms:" + bias list + label
+                    # description + "Relate terms:" + bias list + label
                     # full_sequence = [start_of_prev] + encoded_prompt + relate_terms + encoded_bias + [start_of_transcript] + encoded_label
                     full_sequence = [start_of_prev] + encoded_prompt + relate_terms + encoded_bias + encoded_label
                     full_sequence_tensor = torch.tensor(full_sequence)                    
