@@ -163,28 +163,15 @@ def compute_wer(pred):
     }
     
 def compute_bias_wer(refs_pred_file, bias_spans, tokenizer):
-    """
-    Tính WER chỉ cho bias_words từ refs_and_pred.txt và bias_spans.
-
-    Args:
-        refs_pred_file (str): Đường dẫn đến file refs_and_pred.txt
-        bias_spans (list): Danh sách bias_spans từ data_test, mỗi phần tử là list của list token IDs
-        tokenizer (WhisperTokenizer): Tokenizer để decode bias_spans
-
-    Returns:
-        dict: {'bias_wer': float} - WER trung bình cho bias_words
-    """
     normalizer = BasicTextNormalizer()
     refs = []
     preds = []
     
-    # Đọc file refs_and_pred.txt
     if not os.path.isfile(refs_pred_file):
         raise FileNotFoundError(f"File {refs_pred_file} không tồn tại")
     
     with open(refs_pred_file, 'r', encoding='utf-8') as f:
         lines = f.readlines()
-        # print(lines)
         i = 0
         while i < len(lines):
             if lines[i].startswith('Ref :'):
@@ -192,10 +179,9 @@ def compute_bias_wer(refs_pred_file, bias_spans, tokenizer):
                 # print(ref)
                 if i + 1 < len(lines) and lines[i + 1].startswith('Pred:'):
                     pred = lines[i + 1][6:].strip()
-                    # print(pred)
                     refs.append(ref)
                     preds.append(pred)
-                    i += 3  # Bỏ qua dòng trống
+                    i += 3
                 else:
                     i += 1
             else:
@@ -208,19 +194,15 @@ def compute_bias_wer(refs_pred_file, bias_spans, tokenizer):
     total_tokens = 0
     bias_wer_list = []
 
-    # Thêm tqdm để theo dõi tiến trình đánh giá
     for idx, (ref, pred, spans) in enumerate(tqdm(zip(refs, preds, bias_spans), total=len(refs), desc="Evaluating bias WER")):
-        # Decode bias_spans thành bias_words
         bias_words = [tokenizer.decode(span, skip_special_tokens=True).lower() for span in spans]
         if not bias_words:
-            continue  # Bỏ qua mẫu không có bias_words
+            continue  
 
-        # Chuẩn hóa ref, pred, và bias_words
         norm_ref = normalizer(ref)
         norm_pred = normalizer(pred)
         norm_bias_words = [normalizer(word) for word in bias_words]
 
-        # Tìm bias_words trong ref và pred
         ref_tokens = norm_ref.split()
         pred_tokens = norm_pred.split()
         sample_distance = 0
@@ -231,19 +213,16 @@ def compute_bias_wer(refs_pred_file, bias_spans, tokenizer):
             if not bias_tokens:
                 continue
 
-            # Đếm số lần xuất hiện của bias_word trong ref
             ref_count = ' '.join(ref_tokens).count(bias_word)
             if ref_count == 0:
-                continue  # Bỏ qua nếu bias_word không có trong ref
+                continue
 
             sample_tokens += len(bias_tokens) * ref_count
 
-            # Tính lỗi bằng edit distance cho bias_word
             pred_count = ' '.join(pred_tokens).count(bias_word)
             if pred_count == ref_count:
-                continue  # Không có lỗi nếu số lần xuất hiện khớp
+                continue
             else:
-                # Giả sử mỗi sự khác biệt là một lỗi thay thế
                 sample_distance += abs(ref_count - pred_count) * len(bias_tokens)
 
         if sample_tokens > 0:
