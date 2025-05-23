@@ -30,6 +30,8 @@ def parse_args():
     parser.add_argument("--batch", type=int, default=8, help="Evaluation batch size")
     parser.add_argument("--hub_model_id", type=str, required=True, help="Hugging Face model ID of the trained model")
     parser.add_argument("--refs_pred_file", type=str, required=False, default=None, help="Path to refs and pred (will be overwritten)")
+    
+    parser.add_argument("--prompt", action="store_true", help="Use prompt in decoder")
     return parser.parse_args()
 
 def save_refs_and_preds(trainer, dataset, tokenizer, refs_pred_file):
@@ -154,73 +156,77 @@ def main():
     except Exception as e:
         raise RuntimeError(f"Failed to load final model from {args.hub_model_id}: {str(e)}")
 
-    training_args_final = Seq2SeqTrainingArguments(
-        output_dir=os.path.join(output_dir, "final_model"),
-        per_device_eval_batch_size=args.batch,
-        predict_with_generate=True,
-        generation_max_length=225,
-        remove_unused_columns=False,
-        fp16=torch.cuda.is_available(),
-        report_to=[],
-        do_train=False,
-        do_eval=True,
-    )
+    if not args.final_model and not args.best_checkpoint:
+      print("Chon co de test!")
+      
+    if args.final_model:
+      training_args_final = Seq2SeqTrainingArguments(
+          output_dir=os.path.join(output_dir, "final_model"),
+          per_device_eval_batch_size=args.batch,
+          predict_with_generate=True,
+          generation_max_length=225,
+          remove_unused_columns=False,
+          fp16=torch.cuda.is_available(),
+          report_to=[],
+          do_train=False,
+          do_eval=True,
+      )
 
-    trainer_final = Seq2SeqTrainer(
-        args=training_args_final,
-        model=final_model,
-        eval_dataset=data_test,
-        data_collator=data_collator,
-        tokenizer=processor.tokenizer,
-        compute_metrics=compute_wer if not args.only_eval_bias_wer else None,
-    )
+      trainer_final = Seq2SeqTrainer(
+          args=training_args_final,
+          model=final_model,
+          eval_dataset=data_test,
+          data_collator=data_collator,
+          tokenizer=processor.tokenizer,
+          compute_metrics=compute_wer if not args.only_eval_bias_wer else None,
+      )
 
-    
-    final_refs_pred_file = os.path.join(output_dir, "refs_and_pred.txt")
-    save_refs_and_preds(trainer_final, data_test, tokenizer, final_refs_pred_file)
-    evaluate_model(trainer_final, output_dir, "refs_and_pred", final_refs_pred_file, bias_spans, tokenizer, args.only_eval_bias_wer)
+      
+      final_refs_pred_file = os.path.join(output_dir, "refs_and_pred.txt")
+      save_refs_and_preds(trainer_final, data_test, tokenizer, final_refs_pred_file)
+      evaluate_model(trainer_final, output_dir, "refs_and_pred", final_refs_pred_file, bias_spans, tokenizer, args.only_eval_bias_wer)
 
-    
-    # best_checkpoint = find_best_checkpoint(output_dir)
-    # if best_checkpoint:
-    #     print(f"Loading best checkpoint from: {best_checkpoint}")
-    #     try:
-    #         best_model = WhisperForConditionalGenerationWeightCE.from_pretrained(best_checkpoint, bias_weight=args.bias_weight)
-    #         best_model.config.use_cache = False  
-    #         best_model.freeze_encoder()
-    #         best_model.config.forced_decoder_ids = None
-    #         best_model.config.suppress_tokens = []
-    #         best_model.to(device)
-    #     except Exception as e:
-    #         print(f"Failed to load best checkpoint from {best_checkpoint}: {str(e)}")
-    #     else:
-    #         training_args_best = Seq2SeqTrainingArguments(
-    #             output_dir=os.path.join(output_dir, "best_checkpoint"),
-    #             per_device_eval_batch_size=args.batch,
-    #             predict_with_generate=True,
-    #             generation_max_length=225,
-    #             remove_unused_columns=False,
-    #             fp16=torch.cuda.is_available(),
-    #             report_to=[],
-    #             do_train=False,
-    #             do_eval=True,
-    #         )
+    if args.best_checkpoint:
+      best_checkpoint = find_best_checkpoint(output_dir)
+      if best_checkpoint:
+          print(f"Loading best checkpoint from: {best_checkpoint}")
+          try:
+              best_model = WhisperForConditionalGenerationWeightCE.from_pretrained(best_checkpoint, bias_weight=args.bias_weight)
+              best_model.config.use_cache = False  
+              best_model.freeze_encoder()
+              best_model.config.forced_decoder_ids = None
+              best_model.config.suppress_tokens = []
+              best_model.to(device)
+          except Exception as e:
+              print(f"Failed to load best checkpoint from {best_checkpoint}: {str(e)}")
+          else:
+              training_args_best = Seq2SeqTrainingArguments(
+                  output_dir=os.path.join(output_dir, "best_checkpoint"),
+                  per_device_eval_batch_size=args.batch,
+                  predict_with_generate=True,
+                  generation_max_length=225,
+                  remove_unused_columns=False,
+                  fp16=torch.cuda.is_available(),
+                  report_to=[],
+                  do_train=False,
+                  do_eval=True,
+              )
 
-    #         trainer_best = Seq2SeqTrainer(
-    #             args=training_args_best,
-    #             model=best_model,
-    #             eval_dataset=data_test,
-    #             data_collator=data_collator,
-    #             tokenizer=processor.tokenizer,
-    #             compute_metrics=compute_wer if not args.only_eval_bias_wer else None,
-    #         )
+              trainer_best = Seq2SeqTrainer(
+                  args=training_args_best,
+                  model=best_model,
+                  eval_dataset=data_test,
+                  data_collator=data_collator,
+                  tokenizer=processor.tokenizer,
+                  compute_metrics=compute_wer if not args.only_eval_bias_wer else None,
+              )
 
-            
-    #         best_refs_pred_file = os.path.join(output_dir, "best_checkpoint_refs_and_pred.txt")
-    #         save_refs_and_preds(trainer_best, data_test, tokenizer, best_refs_pred_file)
-    #         evaluate_model(trainer_best, output_dir, "best_checkpoint", best_refs_pred_file, bias_spans, tokenizer, args.only_eval_bias_wer)
-    # else:
-    #     print("No valid checkpoint found in output_dir for evaluation.")
+              
+              best_refs_pred_file = os.path.join(output_dir, "refs_and_pred.txt")
+              save_refs_and_preds(trainer_best, data_test, tokenizer, best_refs_pred_file)
+              evaluate_model(trainer_best, output_dir, "refs_and_pred", best_refs_pred_file, bias_spans, tokenizer, args.only_eval_bias_wer)
+      else:
+          print("No valid checkpoint found in output_dir for evaluation.")
 
     gc.collect()
     torch.cuda.empty_cache()
