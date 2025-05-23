@@ -29,9 +29,67 @@ def parse_args():
     parser.add_argument("--only_eval_bias_wer", action="store_true", help="param for eval bias_wer only")
     parser.add_argument("--batch", type=int, default=8, help="Evaluation batch size")
     parser.add_argument("--hub_model_id", type=str, required=True, help="Hugging Face model ID of the trained model")
-    parser.add_argument("--checkpoint_dir", type=str, default=None, help="Local checkpoint directory (optional, overrides hub_model_id)")
-    parser.add_argument("--refs_pred_file", type=str, required=False, default=None, help="Path to refs and pred")
+    parser.add_argument("--refs_pred_file", type=str, required=True, help="Path to refs and pred (will be overwritten)")
     return parser.parse_args()
+
+def save_refs_and_preds(trainer, dataset, tokenizer, refs_pred_file):
+    """Tạo và lưu file refs_pred_file từ dự đoán của trainer."""
+    print(f"Generating predictions for all samples in dataset...")
+    predictions = trainer.predict(dataset)
+    pred_ids = predictions.predictions  
+    label_ids = predictions.label_ids   
+
+    
+    pred_strs = tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
+    label_strs = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
+
+    
+    with open(refs_pred_file, "w", encoding="utf-8") as f:
+        for ref, pred in zip(label_strs, pred_strs):
+            f.write(f"ref: {ref} | pred: {pred}\n")
+    print(f"Saved {len(pred_strs)} samples to {refs_pred_file}")
+
+def evaluate_model(trainer, output_dir, model_name, refs_pred_file, bias_spans, tokenizer, only_eval_bias_wer=False):
+    if not only_eval_bias_wer:
+        print(f"Starting evaluation for WER with {model_name}...")
+        result = trainer.evaluate()
+        print(f"{model_name} Test set evaluation results:", result)
+
+        results_file = os.path.join(output_dir, f"{model_name}_test_results.json")
+        with open(results_file, "w") as f:
+            json.dump(result, f, indent=4)
+        print(f"Saved {model_name} evaluation results to {results_file}")
+
+    print(f"Calculating bias WER with {model_name}...")
+    print(f"ref and pred file path: {refs_pred_file}")
+    bias_wer_result = compute_bias_wer(refs_pred_file, bias_spans, tokenizer)
+    print(f"{model_name} Bias WER result:", bias_wer_result)
+
+    bias_wer_file = os.path.join(output_dir, f"{model_name}_bias_wer_results.json")
+    with open(bias_wer_file, "w") as f:
+        json.dump(bias_wer_result, f, indent=4)
+    print(f"Saved {model_name} bias WER results to {bias_wer_file}")
+
+def find_best_checkpoint(checkpoint_dir):
+    if not os.path.exists(checkpoint_dir):
+        return None
+    checkpoints = [d for d in os.listdir(checkpoint_dir) if d.startswith("checkpoint-")]
+    if not checkpoints:
+        return None
+    best_checkpoint = None
+    best_wer = float('inf')
+    for checkpoint in checkpoints:
+        metric_file = os.path.join(checkpoint_dir, checkpoint, "trainer_state.json")
+        if os.path.exists(metric_file):
+            with open(metric_file, "r") as f:
+                metrics = json.load(f)
+                for state in metrics.get("log_history", []):
+                    if "eval_wer" in state:
+                        wer = state["eval_wer"]
+                        if wer < best_wer:
+                            best_wer = wer
+                            best_checkpoint = os.path.join(checkpoint_dir, checkpoint)
+    return best_checkpoint
 
 def main():
     args = parse_args()
@@ -79,68 +137,90 @@ def main():
     print(f"Test data length: {len(data_test)}")
 
     bias_spans = [data_test[i]["bias_spans"] for i in tqdm(range(len(data_test)), desc="Collecting bias spans", total=len(data_test))]
-
-    # Chọn model đã train từ hub_model_id hoặc checkpoint_dir
-    model_source = args.checkpoint_dir if args.checkpoint_dir else args.hub_model_id
-    print(f"Loading pre-trained model from: {model_source}")
-    try:
-        model = WhisperForConditionalGenerationWeightCE.from_pretrained(model_source, bias_weight=args.bias_weight)
-        model.config.use_cache = False  
-        model.freeze_encoder()
-        model.config.forced_decoder_ids = None
-        model.config.suppress_tokens = []
-        model.to(device)
-    except Exception as e:
-        raise RuntimeError(f"Failed to load model from {model_source}: {str(e)}")
+    print(f"Total bias spans collected: {len(bias_spans)}")
 
     output_dir = args.output if args.output else os.path.join("/kaggle/working", "results")
     os.makedirs(output_dir, exist_ok=True)
 
-    # Cấu hình chỉ cho evaluation
-    training_args = Seq2SeqTrainingArguments(
-        output_dir=args.output,
+    
+    print(f"Loading final pre-trained model from: {args.hub_model_id}")
+    try:
+        final_model = WhisperForConditionalGenerationWeightCE.from_pretrained(args.hub_model_id, bias_weight=args.bias_weight)
+        final_model.config.use_cache = False  
+        final_model.freeze_encoder()
+        final_model.config.forced_decoder_ids = None
+        final_model.config.suppress_tokens = []
+        final_model.to(device)
+    except Exception as e:
+        raise RuntimeError(f"Failed to load final model from {args.hub_model_id}: {str(e)}")
+
+    training_args_final = Seq2SeqTrainingArguments(
+        output_dir=os.path.join(output_dir, "final_model"),
         per_device_eval_batch_size=args.batch,
         predict_with_generate=True,
         generation_max_length=225,
         remove_unused_columns=False,
         fp16=torch.cuda.is_available(),
         report_to=[],
-        do_train=False,  # Tắt chế độ train
-        do_eval=True,    # Chỉ thực hiện evaluation
+        do_train=False,
+        do_eval=True,
     )
 
-    trainer = Seq2SeqTrainer(
-        args=training_args,
-        model=model,
+    trainer_final = Seq2SeqTrainer(
+        args=training_args_final,
+        model=final_model,
         eval_dataset=data_test,
         data_collator=data_collator,
         tokenizer=processor.tokenizer,
         compute_metrics=compute_wer if not args.only_eval_bias_wer else None,
     )
 
-    if not args.only_eval_bias_wer:
-        print("Starting evaluation for WER...")
-        result = trainer.evaluate()
-        print("Test set evaluation results:", result)
+    
+    final_refs_pred_file = os.path.join(output_dir, "final_model_refs_and_pred.txt")
+    save_refs_and_preds(trainer_final, data_test, tokenizer, final_refs_pred_file)
+    evaluate_model(trainer_final, output_dir, "final_model", final_refs_pred_file, bias_spans, tokenizer, args.only_eval_bias_wer)
 
-        results_file = os.path.join(args.output, "test_results.json")
-        with open(results_file, "w") as f:
-            json.dump(result, f, indent=4)
-        print(f"Saved evaluation results to {results_file}")
+    
+    best_checkpoint = find_best_checkpoint(output_dir)
+    if best_checkpoint:
+        print(f"Loading best checkpoint from: {best_checkpoint}")
+        try:
+            best_model = WhisperForConditionalGenerationWeightCE.from_pretrained(best_checkpoint, bias_weight=args.bias_weight)
+            best_model.config.use_cache = False  
+            best_model.freeze_encoder()
+            best_model.config.forced_decoder_ids = None
+            best_model.config.suppress_tokens = []
+            best_model.to(device)
+        except Exception as e:
+            print(f"Failed to load best checkpoint from {best_checkpoint}: {str(e)}")
+        else:
+            training_args_best = Seq2SeqTrainingArguments(
+                output_dir=os.path.join(output_dir, "best_checkpoint"),
+                per_device_eval_batch_size=args.batch,
+                predict_with_generate=True,
+                generation_max_length=225,
+                remove_unused_columns=False,
+                fp16=torch.cuda.is_available(),
+                report_to=[],
+                do_train=False,
+                do_eval=True,
+            )
 
-    if args.refs_pred_file is not None:
-        print("Calculating bias WER...")
-        refs_pred_file = args.refs_pred_file
-        print("ref and pred file path:", refs_pred_file)
-        bias_wer_result = compute_bias_wer(refs_pred_file, bias_spans, tokenizer)
-        print("Bias WER result:", bias_wer_result)
+            trainer_best = Seq2SeqTrainer(
+                args=training_args_best,
+                model=best_model,
+                eval_dataset=data_test,
+                data_collator=data_collator,
+                tokenizer=processor.tokenizer,
+                compute_metrics=compute_wer if not args.only_eval_bias_wer else None,
+            )
 
-        bias_wer_file = os.path.join(output_dir, "bias_wer_results.json")
-        with open(bias_wer_file, "w") as f:
-            json.dump(bias_wer_result, f, indent=4)
-        print(f"Saved bias WER results to {bias_wer_file}")
+            
+            best_refs_pred_file = os.path.join(output_dir, "best_checkpoint_refs_and_pred.txt")
+            save_refs_and_preds(trainer_best, data_test, tokenizer, best_refs_pred_file)
+            evaluate_model(trainer_best, output_dir, "best_checkpoint", best_refs_pred_file, bias_spans, tokenizer, args.only_eval_bias_wer)
     else:
-        print("Not found file refs and pred for evaluation bias wer!")
+        print("No valid checkpoint found in output_dir for evaluation.")
 
     gc.collect()
     torch.cuda.empty_cache()
