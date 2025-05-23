@@ -164,7 +164,7 @@ def main():
             final_model = WhisperForConditionalGenerationWeightCE.from_pretrained(args.hub_model_id, bias_weight=args.bias_weight)
             final_model.config.use_cache = False  
             final_model.freeze_encoder()
-            final_model.config.forced_decoder_ids = None
+            # final_model.config.forced_decoder_ids = None
             final_model.config.suppress_tokens = []
             final_model.to(device)
         except Exception as e:
