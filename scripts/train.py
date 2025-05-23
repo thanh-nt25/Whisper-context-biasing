@@ -482,7 +482,7 @@ def main():
             bias_weight=args.bias_weight
         )
         model.freeze_encoder()
-        model.config.forced_decoder_ids = None
+        # model.config.forced_decoder_ids = None
         model.config.suppress_tokens = []
     except Exception as e:
         raise RuntimeError(f"Failed to load model: {str(e)}")
