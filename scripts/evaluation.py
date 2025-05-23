@@ -31,7 +31,8 @@ def parse_args():
     parser.add_argument("--hub_model_id", type=str, required=True, help="Hugging Face model ID of the trained model")
     parser.add_argument("--refs_pred_file", type=str, required=False, default=None, help="Path to refs and pred (will be overwritten)")
     
-    parser.add_argument("--prompt", action="store_true", help="Use prompt in decoder")
+    parser.add_argument("--final_model", action="store_true", default=False, help="eval withf final train")
+    parser.add_argument("--best_checkpoint", action="store_true", default=False, help="eval with best checkpoint")
     return parser.parse_args()
 
 def save_refs_and_preds(trainer, dataset, tokenizer, refs_pred_file):
