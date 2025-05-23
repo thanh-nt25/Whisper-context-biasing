@@ -29,7 +29,7 @@ def parse_args():
     parser.add_argument("--only_eval_bias_wer", action="store_true", help="param for eval bias_wer only")
     parser.add_argument("--batch", type=int, default=8, help="Evaluation batch size")
     parser.add_argument("--hub_model_id", type=str, required=True, help="Hugging Face model ID of the trained model")
-    parser.add_argument("--refs_pred_file", type=str, required=True, help="Path to refs and pred (will be overwritten)")
+    parser.add_argument("--refs_pred_file", type=str, required=False, default=None, help="Path to refs and pred (will be overwritten)")
     return parser.parse_args()
 
 def save_refs_and_preds(trainer, dataset, tokenizer, refs_pred_file):
