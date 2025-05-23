@@ -210,6 +210,8 @@ def main():
                     delattr(best_model.config, "forced_decoder_ids")
                 best_model.config.use_cache = False  
                 best_model.freeze_encoder()
+                best_model.generation_config.language = "<|en|>"
+                best_model.generation_config.task = "transcribe"
                 best_model.config.suppress_tokens = []
                 best_model.to(device)
             except Exception as e:
