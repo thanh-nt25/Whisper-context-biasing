@@ -267,7 +267,7 @@ def main():
         compute_metrics=compute_wer,
     )
     trainer.add_callback(PushToHubOnSaveCallback())
-    trainer.add_callback(EarlyStoppingCallback(early_stopping_patience=4))
+    trainer.add_callback(EarlyStoppingCallback(early_stopping_patience=3))
 
     print("Starting training...")
     trainer.train(resume_from_checkpoint=checkpoint_dir if args.resume and checkpoint_dir else None)
