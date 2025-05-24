@@ -56,7 +56,8 @@ def load_wave(wave_path, sample_rate: int = 16000) -> torch.Tensor:
     return wav
 
 class PromptWhisperDataset(torch.utils.data.Dataset):
-    def __init__(self, base_path, jsonl_data, phase, feature_extractor, tokenizer, prompt=False, bias_list=False, audio_type=".wav", sample_rate=16000, random=False, bias_nums=0):
+    def __init__(self, base_path, jsonl_data, phase, feature_extractor, tokenizer, prompt=False, 
+                 bias_list=False, audio_type=".wav", sample_rate=16000, random=False, bias_nums=0, bias_desc = False):
         super().__init__()
         self.phase = phase
         self.base_path = base_path
@@ -75,6 +76,7 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
         self.feature_extractor = feature_extractor
         self.tokenizer = tokenizer
         self._initialize_pools()  # Khởi tạo pool bias và non-bias
+        self.bias_desc = bias_desc
 
     def _initialize_prompt_pool(self):
         # Initialize the prompt pool with a list of full prompts
@@ -181,7 +183,7 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
             if self.prompt or self.bias_list:
                 start_of_prev = self.tokenizer.convert_tokens_to_ids("<|startofprev|>")
 
-                # Only description
+                # 1. Only description
                 if self.prompt and not self.bias_list:
                     if not self.random_prompt or 'train' not in self.phase:
                         prompt_text = prompt
@@ -196,13 +198,13 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                         if len(encoded_prompt) > 190:
                             encoded_prompt = encoded_prompt[:190]
                     else:
-                        encoded_prompt = []
+                        raise ValueError(f"Error for extracting prompt")
 
                     # full_sequence = [start_of_prev] + encoded_prompt + [start_of_transcript] + encoded_label
                     full_sequence = [start_of_prev] + encoded_prompt + encoded_label
                     full_sequence_tensor = torch.tensor(full_sequence)
 
-                # only bias list, 30% bias, 70% non bias
+                # 2. only bias list, 30% bias, 70% non bias
                 elif not self.prompt and self.bias_list and self.bias_nums > 0:
                     bias_words_list = []
                     if self.bias_pool and self.non_bias_pool:
@@ -245,13 +247,10 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                         full_sequence = [start_of_prev] + encoded_bias + encoded_label
                         full_sequence_tensor = torch.tensor(full_sequence)
                     else:
-                        print(f"Warning: bias_pool or non_bias_pool is empty for sample {id}, using default label")
-                        # full_sequence = [start_of_transcript] + encoded_label
-                        full_sequence = encoded_label
-                        full_sequence_tensor = torch.tensor(full_sequence)
-
-                # bias list + description
-                elif self.prompt and self.bias_list and self.bias_nums > 0:
+                      raise ValueError(f"bias_pool or non_bias_pool is empty for sample {id}")
+                #3. description + bias list
+                elif self.prompt and self.bias_list and self.bias_nums > 0 and not self.bias_desc:
+                    print("Using desction + bias list")
                     if not self.random_prompt or 'train' not in self.phase:
                         prompt_text = prompt
                     else:
@@ -308,7 +307,67 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                     # description + "Relate terms:" + bias list + label
                     # full_sequence = [start_of_prev] + encoded_prompt + relate_terms + encoded_bias + [start_of_transcript] + encoded_label
                     full_sequence = [start_of_prev] + encoded_prompt + relate_terms + encoded_bias + encoded_label
+                    full_sequence_tensor = torch.tensor(full_sequence)     
+                    
+                #4. reverse bias list + description
+                elif self.prompt and self.bias_list and self.bias_nums > 0 and self.bias_desc:
+                    print("Using reverse bias list + description")
+                    if not self.random_prompt or 'train' not in self.phase:
+                        prompt_text = prompt
+                    else:
+                        if torch.rand([]) < 0.05:
+                            prompt_text = random_prompt
+                        else:
+                            prompt_text = prompt
+
+                    if prompt_text:
+                        encoded_prompt = self.tokenizer.encode(prompt_text.lower(), add_special_tokens=False)
+                        if len(encoded_prompt) > 150:
+                            encoded_prompt = encoded_prompt[:150]
+                    else:
+                        encoded_prompt = []
+
+                    relate_terms = self.tokenizer.encode("Relate terms: ", add_special_tokens=False)
+
+                    bias_words_list = []
+                    if self.bias_pool and self.non_bias_pool:
+                        if torch.rand([]) < 0.05:
+                            bias_words_list = random.sample(list(self.non_bias_pool), self.bias_nums)
+                        else:
+                            if bias_words:
+                                bias_words_list.extend([word.lower() for word in bias_words])
+
+                            total_bias_needed = max(1, int(self.bias_nums * 0.3))
+                            num_bias_to_add = total_bias_needed - len(bias_words_list)
+                            if num_bias_to_add > 0 and self.bias_pool:
+                                available_bias = list(self.bias_pool - set(bias_words_list))
+                                if available_bias:
+                                    bias_words_list.extend(random.sample(available_bias, min(num_bias_to_add, len(available_bias))))
+
+                            num_remaining = self.bias_nums - len(bias_words_list)
+                            if num_remaining > 0 and self.non_bias_pool:
+                                available_non_bias = list(self.non_bias_pool - set(bias_words_list))
+                                if available_non_bias:
+                                    bias_words_list.extend(random.sample(available_non_bias, min(num_remaining, len(available_non_bias))))
+
+                        if len(bias_words_list) > self.bias_nums:
+                            bias_words_list = bias_words_list[:self.bias_nums]
+                        while len(bias_words_list) < self.bias_nums and self.non_bias_pool:
+                            available_non_bias = list(self.non_bias_pool - set(bias_words_list))
+                            if available_non_bias:
+                                bias_words_list.append(random.choice(available_non_bias))
+
+                        space_token = self.tokenizer.encode(" ", add_special_tokens=False)
+                        encoded_bias = []
+                        for i, word in enumerate(bias_words_list):
+                            encoded_word = self.tokenizer.encode(word, add_special_tokens=False)
+                            encoded_bias.extend(encoded_word)
+                            if i < len(bias_words_list) - 1: 
+                                encoded_bias.extend(space_token)
+
+                    full_sequence = [start_of_prev] + relate_terms + encoded_bias + encoded_prompt + encoded_label
                     full_sequence_tensor = torch.tensor(full_sequence)                    
+               
             return {
                 "input_features": processed_audio,
                 "labels": full_sequence_tensor,

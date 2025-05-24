@@ -12,18 +12,12 @@ from transformers import Seq2SeqTrainingArguments, Seq2SeqTrainer, WhisperProces
 from transformers.trainer_callback import TrainerCallback
 from transformers import EarlyStoppingCallback
 
-# Đảm bảo PROJECT_ROOT trỏ đúng đến thư mục gốc
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, PROJECT_ROOT)
 print(f"PROJECT_ROOT: {PROJECT_ROOT}")
 print(f"sys.path: {sys.path}")
 
-try:
-    from models.whisper_medical import WhisperForConditionalGenerationWeightCE
-except ModuleNotFoundError:
-    print("Error: Module 'models' not found. Please check if 'models/whisper_medical.py' exists in PROJECT_ROOT.")
-    sys.exit(1)
-
+from models.whisper_medical import WhisperForConditionalGenerationWeightCE
 from data_utils.data_loader import PromptWhisperDataset
 from data_utils.data_collator import DataCollatorSpeechSeq2SeqWithPadding
 from utils.compute_metric import compute_wer, compute_bias_wer
@@ -47,6 +41,7 @@ def parse_args():
     parser.add_argument("--random", action="store_true", help="Apply context perturbation")
     parser.add_argument("--bias_list", action="store_true", help="Active all bias list prompt")
     parser.add_argument("--bias_nums", type=int, default=0, help="Number of bias words")
+    parser.add_argument("--bias_desc", action="store_true", help="reverse bias + desc")
     return parser.parse_args()
 
 def sync_from_hub(repo_id, local_dir, token):
@@ -129,7 +124,8 @@ def main():
         prompt=args.prompt,
         random=args.random,
         bias_list=args.bias_list,
-        bias_nums=args.bias_nums
+        bias_nums=args.bias_nums,
+        bias_desc=args.bias_desc
     )
     data_eval = PromptWhisperDataset(
         base_path=os.path.join(args.data_root, args.data_dir),
@@ -141,7 +137,8 @@ def main():
         prompt=args.prompt,
         random=args.random,
         bias_list=args.bias_list,
-        bias_nums=args.bias_nums
+        bias_nums=args.bias_nums,
+        bias_desc=args.bias_desc
     )
     data_test = PromptWhisperDataset(
         base_path=os.path.join(args.data_root, args.data_dir),
@@ -153,7 +150,8 @@ def main():
         prompt=args.prompt,
         random=args.random,
         bias_list=args.bias_list,
-        bias_nums=args.bias_nums
+        bias_nums=args.bias_nums,
+        bias_desc=args.bias_desc
     )
 
     if len(data_train) == 0 or len(data_eval) == 0 or len(data_test) == 0:
