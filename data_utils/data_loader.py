@@ -76,6 +76,7 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
         self.feature_extractor = feature_extractor
         self.tokenizer = tokenizer
         self._initialize_pools()  # Khởi tạo pool bias và non-bias
+        self._initialize_prompt_pool()
         self.bias_desc = bias_desc
 
     def _initialize_prompt_pool(self):
