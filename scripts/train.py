@@ -228,13 +228,13 @@ def main():
         per_device_eval_batch_size=2,
         gradient_accumulation_steps=4,
         learning_rate=1e-5,
-        num_train_epochs=args.epoch,
+        num_train_epochs=5,
         max_steps=-1,
-        warmup_steps=100,
+        warmup_steps=50,
         weight_decay=0.01,
+        eval_steps=135,
+        save_steps=100,
         eval_strategy="steps",
-        eval_steps=300,
-        save_steps=300,
         save_strategy="steps",
         logging_strategy="steps",
         logging_steps=50,
@@ -267,7 +267,7 @@ def main():
         compute_metrics=compute_wer,
     )
     trainer.add_callback(PushToHubOnSaveCallback())
-    trainer.add_callback(EarlyStoppingCallback(early_stopping_patience=2))
+    trainer.add_callback(EarlyStoppingCallback(early_stopping_patience=4))
 
     print("Starting training...")
     trainer.train(resume_from_checkpoint=checkpoint_dir if args.resume and checkpoint_dir else None)
