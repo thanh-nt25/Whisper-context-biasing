@@ -226,7 +226,7 @@ def main():
         output_dir=output_dir,
         per_device_train_batch_size=args.batch,
         per_device_eval_batch_size=2,
-        gradient_accumulation_steps=1,
+        gradient_accumulation_steps=4,
         learning_rate=args.lr,
         num_train_epochs=args.epoch,
         max_steps=-1,
