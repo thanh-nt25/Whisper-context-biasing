@@ -194,7 +194,7 @@ def main():
             checkpoint_dir if args.resume else model_source,
             bias_weight=args.bias_weight
         )
-        model.freeze_encoder()
+        # model.freeze_encoder()
         if hasattr(model.config, 'forced_decoder_ids'):
             print("Removing forced_decoder_ids from model config")
             model.config.forced_decoder_ids = None
@@ -226,18 +226,19 @@ def main():
         output_dir=output_dir,
         per_device_train_batch_size=args.batch,
         per_device_eval_batch_size=2,
-        gradient_accumulation_steps=4,
+        gradient_accumulation_steps=1,
         learning_rate=args.lr,
         num_train_epochs=args.epoch,
         max_steps=-1,
-        warmup_steps=500,
+        warmup_steps=100,
         weight_decay=0.01,
         eval_strategy="steps",
-        eval_steps=300,
-        save_steps=300,
+        eval_steps=100,
+        save_steps=100,
         save_strategy="steps",
         logging_strategy="steps",
         logging_steps=50,
+        lr_scheduler_type="cosine",
         save_total_limit=1,
         load_best_model_at_end=True,
         metric_for_best_model="wer",
