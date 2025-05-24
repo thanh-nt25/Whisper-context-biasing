@@ -72,11 +72,11 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
         self.bias_pool = set()  # Pool cho bias words
         self.non_bias_pool = set()  # Pool cho từ không phải bias
         self.audio_type = audio_type
-        self._load_data()
         self.feature_extractor = feature_extractor
         self.tokenizer = tokenizer
-        self._initialize_pools()  # Khởi tạo pool bias và non-bias
         self._initialize_prompt_pool()
+        self._load_data()
+        self._initialize_pools()  # Khởi tạo pool bias và non-bias
         self.bias_desc = bias_desc
 
     def _initialize_prompt_pool(self):
