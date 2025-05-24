@@ -172,25 +172,22 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
             processed_audio = torch.tensor(processed_audio[0])
 
             # Encode label (transcript)
-            # encoded_label = self.tokenizer.encode(raw_text.lower(), add_special_tokens=False)
             encoded_label = self.tokenizer.encode(raw_text.lower())
 
             # default full sequence
             start_of_transcript = self.tokenizer.convert_tokens_to_ids("<|startoftranscript|>")
-            # full_sequence = [start_of_transcript] + encoded_label
             full_sequence = encoded_label
             full_sequence_tensor = torch.tensor(full_sequence)
 
             if self.prompt or self.bias_list:
                 start_of_prev = self.tokenizer.convert_tokens_to_ids("<|startofprev|>")
 
-                # 1. Only description
+                # 1. Only description (giữ nguyên, không thay đổi)
                 if self.prompt and not self.bias_list:
                     if not self.random_prompt or 'train' not in self.phase:
                         prompt_text = prompt
                     else:
                         if torch.rand([]) < 0.05:
-                            # print(f"Truong hop random prompt cho id {id}")
                             prompt_text = random_prompt
                         else:
                             prompt_text = prompt
@@ -203,58 +200,52 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                         print(f"Error for extracting prompt of {id}: prompt_text is {'None' if prompt_text is None else 'empty'}")
                         encoded_prompt = []
 
-                    # full_sequence = [start_of_prev] + encoded_prompt + [start_of_transcript] + encoded_label
                     full_sequence = [start_of_prev] + encoded_prompt + encoded_label
                     full_sequence_tensor = torch.tensor(full_sequence)
 
-                # 2. only bias list, 30% bias, 70% non bias
+                # 2. Only bias list
                 elif not self.prompt and self.bias_list and self.bias_nums > 0:
                     bias_words_list = []
-                    if self.bias_pool and self.non_bias_pool:
-                        if torch.rand([]) < 0.05:
-                            bias_words_list = random.sample(list(self.non_bias_pool), self.bias_nums)
-                        else:
-                            # add bias of current sample
-                            if bias_words:
-                                bias_words_list.extend([word.lower() for word in bias_words])
+                    if self.bias_pool:
+                        # Lấy tất cả bias words của sample hiện tại
+                        bias_words_list = [word.lower() for word in bias_words]
 
-                            total_bias_needed = max(1, int(self.bias_nums * 0.3))
-                            num_bias_to_add = total_bias_needed - len(bias_words_list)
-                            if num_bias_to_add > 0 and self.bias_pool:
-                                available_bias = list(self.bias_pool - set(bias_words_list))
-                                if available_bias:
-                                    bias_words_list.extend(random.sample(available_bias, min(num_bias_to_add, len(available_bias))))
+                        # Tính số lượng bias words cần thêm
+                        num_remaining = self.bias_nums - len(bias_words_list)
+                        if num_remaining > 0:
+                            # Loại bỏ bias words của sample hiện tại khỏi bias_pool
+                            available_bias = list(self.bias_pool - set(bias_words_list))
+                            if available_bias:
+                                # Lấy ngẫu nhiên các từ từ bias_pool để đủ bias_nums
+                                bias_words_list.extend(random.sample(available_bias, min(num_remaining, len(available_bias))))
 
-                            num_remaining = self.bias_nums - len(bias_words_list)
-                            if num_remaining > 0 and self.non_bias_pool:
-                                available_non_bias = list(self.non_bias_pool - set(bias_words_list))
-                                if available_non_bias:
-                                    bias_words_list.extend(random.sample(available_non_bias, min(num_remaining, len(available_non_bias))))
+                        # Nếu vẫn thiếu (do bias_pool không đủ từ), lặp lại từ bias_pool
+                        while len(bias_words_list) < self.bias_nums and self.bias_pool:
+                            available_bias = list(self.bias_pool - set(bias_words_list))
+                            if available_bias:
+                                bias_words_list.append(random.choice(available_bias))
 
+                        # Cắt danh sách nếu vượt quá bias_nums
                         if len(bias_words_list) > self.bias_nums:
                             bias_words_list = bias_words_list[:self.bias_nums]
-                        while len(bias_words_list) < self.bias_nums and self.non_bias_pool:
-                            available_non_bias = list(self.non_bias_pool - set(bias_words_list))
-                            if available_non_bias:
-                                bias_words_list.append(random.choice(available_non_bias))
 
+                        # Mã hóa bias words list
                         space_token = self.tokenizer.encode(" ", add_special_tokens=False)
                         encoded_bias = []
                         for i, word in enumerate(bias_words_list):
                             encoded_word = self.tokenizer.encode(word, add_special_tokens=False)
                             encoded_bias.extend(encoded_word)
-                            if i < len(bias_words_list) - 1: 
+                            if i < len(bias_words_list) - 1:
                                 encoded_bias.extend(space_token)
                         if not encoded_bias:
-                          print(f"Warning: encoded_bias is empty for sample {id}. bias_words_list: {bias_words_list}")
-                        
+                            print(f"Warning: encoded_bias is empty for sample {id}. bias_words_list: {bias_words_list}")
 
-                        # full_sequence = [start_of_prev] + encoded_bias + [start_of_transcript] + encoded_label
                         full_sequence = [start_of_prev] + encoded_bias + encoded_label
                         full_sequence_tensor = torch.tensor(full_sequence)
                     else:
-                      raise ValueError(f"bias_pool or non_bias_pool is empty for sample {id}")
-                #3. description + bias list
+                        raise ValueError(f"bias_pool is empty for sample {id}")
+
+                # 3. Description + bias list
                 elif self.prompt and self.bias_list and self.bias_nums > 0 and not self.bias_desc:
                     if not self.random_prompt or 'train' not in self.phase:
                         prompt_text = prompt
@@ -272,55 +263,49 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                         print(f"Error for extracting prompt of {id}: prompt_text is {'None' if prompt_text is None else 'empty'}")
                         encoded_prompt = []
 
-
                     relate_terms = self.tokenizer.encode("Relate terms: ", add_special_tokens=False)
 
                     bias_words_list = []
-                    if self.bias_pool and self.non_bias_pool:
-                        if torch.rand([]) < 0.05:
-                            bias_words_list = random.sample(list(self.non_bias_pool), self.bias_nums)
-                        else:
-                            if bias_words:
-                                bias_words_list.extend([word.lower() for word in bias_words])
+                    if self.bias_pool:
+                        # Lấy tất cả bias words của sample hiện tại
+                        bias_words_list = [word.lower() for word in bias_words]
 
-                            total_bias_needed = max(1, int(self.bias_nums * 0.3))
-                            num_bias_to_add = total_bias_needed - len(bias_words_list)
-                            if num_bias_to_add > 0 and self.bias_pool:
-                                available_bias = list(self.bias_pool - set(bias_words_list))
-                                if available_bias:
-                                    bias_words_list.extend(random.sample(available_bias, min(num_bias_to_add, len(available_bias))))
+                        # Tính số lượng bias words cần thêm
+                        num_remaining = self.bias_nums - len(bias_words_list)
+                        if num_remaining > 0:
+                            # Loại bỏ bias words của sample hiện tại khỏi bias_pool
+                            available_bias = list(self.bias_pool - set(bias_words_list))
+                            if available_bias:
+                                # Lấy ngẫu nhiên các từ từ bias_pool để đủ bias_nums
+                                bias_words_list.extend(random.sample(available_bias, min(num_remaining, len(available_bias))))
 
-                            num_remaining = self.bias_nums - len(bias_words_list)
-                            if num_remaining > 0 and self.non_bias_pool:
-                                available_non_bias = list(self.non_bias_pool - set(bias_words_list))
-                                if available_non_bias:
-                                    bias_words_list.extend(random.sample(available_non_bias, min(num_remaining, len(available_non_bias))))
+                        # Nếu vẫn thiếu, lặp lại từ bias_pool
+                        while len(bias_words_list) < self.bias_nums and self.bias_pool:
+                            available_bias = list(self.bias_pool - set(bias_words_list))
+                            if available_bias:
+                                bias_words_list.append(random.choice(available_bias))
 
+                        # Cắt danh sách nếu vượt quá bias_nums
                         if len(bias_words_list) > self.bias_nums:
                             bias_words_list = bias_words_list[:self.bias_nums]
-                        while len(bias_words_list) < self.bias_nums and self.non_bias_pool:
-                            available_non_bias = list(self.non_bias_pool - set(bias_words_list))
-                            if available_non_bias:
-                                bias_words_list.append(random.choice(available_non_bias))
 
+                        # Mã hóa bias words list
                         space_token = self.tokenizer.encode(" ", add_special_tokens=False)
                         encoded_bias = []
                         for i, word in enumerate(bias_words_list):
                             encoded_word = self.tokenizer.encode(word, add_special_tokens=False)
                             encoded_bias.extend(encoded_word)
-                            if i < len(bias_words_list) - 1: 
+                            if i < len(bias_words_list) - 1:
                                 encoded_bias.extend(space_token)
                         if not encoded_bias:
-                          print(f"Warning: encoded_bias is empty for sample {id}. bias_words_list: {bias_words_list}")
-                                
+                            print(f"Warning: encoded_bias is empty for sample {id}. bias_words_list: {bias_words_list}")
 
+                        full_sequence = [start_of_prev] + encoded_prompt + relate_terms + encoded_bias + encoded_label
+                        full_sequence_tensor = torch.tensor(full_sequence)
+                    else:
+                        raise ValueError(f"bias_pool is empty for sample {id}")
 
-                    # description + "Relate terms:" + bias list + label
-                    # full_sequence = [start_of_prev] + encoded_prompt + relate_terms + encoded_bias + [start_of_transcript] + encoded_label
-                    full_sequence = [start_of_prev] + encoded_prompt + relate_terms + encoded_bias + encoded_label
-                    full_sequence_tensor = torch.tensor(full_sequence)     
-                    
-                #4. reverse bias list + description
+                # 4. Reverse bias list + description
                 elif self.prompt and self.bias_list and self.bias_nums > 0 and self.bias_desc:
                     if not self.random_prompt or 'train' not in self.phase:
                         prompt_text = prompt
@@ -338,52 +323,48 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                         print(f"Error for extracting prompt of {id}: prompt_text is {'None' if prompt_text is None else 'empty'}")
                         encoded_prompt = []
 
-
                     relate_terms = self.tokenizer.encode("Relate terms: ", add_special_tokens=False)
 
                     bias_words_list = []
-                    if self.bias_pool and self.non_bias_pool:
-                        if torch.rand([]) < 0.05:
-                            bias_words_list = random.sample(list(self.non_bias_pool), self.bias_nums)
-                        else:
-                            if bias_words:
-                                bias_words_list.extend([word.lower() for word in bias_words])
+                    if self.bias_pool:
+                        # Lấy tất cả bias words của sample hiện tại
+                        bias_words_list = [word.lower() for word in bias_words]
 
-                            total_bias_needed = max(1, int(self.bias_nums * 0.3))
-                            num_bias_to_add = total_bias_needed - len(bias_words_list)
-                            if num_bias_to_add > 0 and self.bias_pool:
-                                available_bias = list(self.bias_pool - set(bias_words_list))
-                                if available_bias:
-                                    bias_words_list.extend(random.sample(available_bias, min(num_bias_to_add, len(available_bias))))
+                        # Tính số lượng bias words cần thêm
+                        num_remaining = self.bias_nums - len(bias_words_list)
+                        if num_remaining > 0:
+                            # Loại bỏ bias words của sample hiện tại khỏi bias_pool
+                            available_bias = list(self.bias_pool - set(bias_words_list))
+                            if available_bias:
+                                # Lấy ngẫu nhiên các từ từ bias_pool để đủ bias_nums
+                                bias_words_list.extend(random.sample(available_bias, min(num_remaining, len(available_bias))))
 
-                            num_remaining = self.bias_nums - len(bias_words_list)
-                            if num_remaining > 0 and self.non_bias_pool:
-                                available_non_bias = list(self.non_bias_pool - set(bias_words_list))
-                                if available_non_bias:
-                                    bias_words_list.extend(random.sample(available_non_bias, min(num_remaining, len(available_non_bias))))
+                        # Nếu vẫn thiếu, lặp lại từ bias_pool
+                        while len(bias_words_list) < self.bias_nums and self.bias_pool:
+                            available_bias = list(self.bias_pool - set(bias_words_list))
+                            if available_bias:
+                                bias_words_list.append(random.choice(available_bias))
 
+                        # Cắt danh sách nếu vượt quá bias_nums
                         if len(bias_words_list) > self.bias_nums:
                             bias_words_list = bias_words_list[:self.bias_nums]
-                        while len(bias_words_list) < self.bias_nums and self.non_bias_pool:
-                            available_non_bias = list(self.non_bias_pool - set(bias_words_list))
-                            if available_non_bias:
-                                bias_words_list.append(random.choice(available_non_bias))
 
+                        # Mã hóa bias words list
                         space_token = self.tokenizer.encode(" ", add_special_tokens=False)
                         encoded_bias = []
                         for i, word in enumerate(bias_words_list):
                             encoded_word = self.tokenizer.encode(word, add_special_tokens=False)
                             encoded_bias.extend(encoded_word)
-                            if i < len(bias_words_list) - 1: 
+                            if i < len(bias_words_list) - 1:
                                 encoded_bias.extend(space_token)
-                                
                         if not encoded_bias:
-                          print(f"Warning: encoded_bias is empty for sample {id}. bias_words_list: {bias_words_list}")
-                                
-                    
-                    full_sequence = [start_of_prev] + relate_terms + encoded_bias + encoded_prompt + encoded_label
-                    full_sequence_tensor = torch.tensor(full_sequence)                    
-               
+                            print(f"Warning: encoded_bias is empty for sample {id}. bias_words_list: {bias_words_list}")
+
+                        full_sequence = [start_of_prev] + relate_terms + encoded_bias + encoded_prompt + encoded_label
+                        full_sequence_tensor = torch.tensor(full_sequence)
+                    else:
+                        raise ValueError(f"bias_pool is empty for sample {id}")
+
             return {
                 "input_features": processed_audio,
                 "labels": full_sequence_tensor,

@@ -251,8 +251,8 @@ def main():
         dataloader_num_workers=1,
         push_to_hub=True,
         hub_model_id=args.hub_model_id,
-        hub_strategy="every_save",
         push_to_hub_token=args.hf_token,
+        hub_strategy="every_save",
         report_to=["wandb"],
     )
 
