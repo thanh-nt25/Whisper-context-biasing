@@ -80,7 +80,7 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
 
     def _initialize_prompt_pool(self):
         # Initialize the prompt pool with a list of full prompts
-        jsonl_path = os.path.join("data", self.jsonl_data, f"{self.phase}.jsonl")
+        jsonl_path = os.path.join(self.jsonl_data, f"{self.phase}.jsonl")
 
         if not os.path.isfile(jsonl_path):
             raise FileNotFoundError(f"Jsonl file not found: {jsonl_path}")
@@ -244,7 +244,9 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                             encoded_bias.extend(encoded_word)
                             if i < len(bias_words_list) - 1: 
                                 encoded_bias.extend(space_token)
-                                
+                        if not encoded_bias:
+                          print(f"Warning: encoded_bias is empty for sample {id}. bias_words_list: {bias_words_list}")
+                        
 
                         # full_sequence = [start_of_prev] + encoded_bias + [start_of_transcript] + encoded_label
                         full_sequence = [start_of_prev] + encoded_bias + encoded_label
@@ -307,6 +309,8 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                             encoded_bias.extend(encoded_word)
                             if i < len(bias_words_list) - 1: 
                                 encoded_bias.extend(space_token)
+                        if not encoded_bias:
+                          print(f"Warning: encoded_bias is empty for sample {id}. bias_words_list: {bias_words_list}")
                                 
 
 
@@ -371,6 +375,10 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                             encoded_bias.extend(encoded_word)
                             if i < len(bias_words_list) - 1: 
                                 encoded_bias.extend(space_token)
+                                
+                        if not encoded_bias:
+                          print(f"Warning: encoded_bias is empty for sample {id}. bias_words_list: {bias_words_list}")
+                                
                     
                     full_sequence = [start_of_prev] + relate_terms + encoded_bias + encoded_prompt + encoded_label
                     full_sequence_tensor = torch.tensor(full_sequence)                    
