@@ -165,7 +165,7 @@ def main():
     output_dir = args.output if args.output else os.path.join("/kaggle/working", "results")
     os.makedirs(output_dir, exist_ok=True)
 
-    # Xác định model_source và checkpoint
+    # Xác định checkpoint lớn nhất
     checkpoint_dir = None
     model_source = "openai/whisper-base.en"
     if args.resume:
@@ -173,11 +173,18 @@ def main():
         if checkpoints:
             checkpoint_dir = max(checkpoints, key=lambda x: int(x.split("-")[1]))
             checkpoint_dir = os.path.join(output_dir, checkpoint_dir)
-            print(f"Tiếp tục huấn luyện từ checkpoint: {checkpoint_dir}")
+            print(f"Tiếp tục huấn luyện từ checkpoint lớn nhất: {checkpoint_dir}")
         else:
-            print(f"Không tìm thấy checkpoint trong output_dir, syncing từ Hugging Face Hub: {args.hub_model_id}")
+            print(f"Không tìm thấy checkpoint cục bộ, syncing từ Hugging Face Hub: {args.hub_model_id}")
             sync_from_hub(repo_id=args.hub_model_id, local_dir=output_dir, token=args.hf_token)
-            checkpoint_dir = output_dir
+            # Tìm checkpoint lớn nhất trong thư mục tải từ Hub
+            hub_checkpoints = [d for d in os.listdir(output_dir) if d.startswith("checkpoint-")]
+            if hub_checkpoints:
+                checkpoint_dir = max(hub_checkpoints, key=lambda x: int(x.split("-")[1]))
+                checkpoint_dir = os.path.join(output_dir, checkpoint_dir)
+                print(f"Tiếp tục huấn luyện từ checkpoint lớn nhất trong Hub: {checkpoint_dir}")
+            else:
+                checkpoint_dir = output_dir  # Sử dụng toàn bộ thư mục tải từ Hub nếu không có checkpoint
     else:
         print("Bắt đầu huấn luyện từ đầu với openai/whisper-base.en")
 
@@ -262,7 +269,7 @@ def main():
     trainer.add_callback(EarlyStoppingCallback(early_stopping_patience=3))
 
     print("Starting training...")
-    trainer.train(resume_from_checkpoint=checkpoint_dir if args.resume else None)
+    trainer.train(resume_from_checkpoint=checkpoint_dir if args.resume and checkpoint_dir else None)
 
     data_collator.training = False
     print("Starting final evaluation on test set...")

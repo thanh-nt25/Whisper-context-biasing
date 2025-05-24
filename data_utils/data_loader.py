@@ -250,7 +250,6 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                       raise ValueError(f"bias_pool or non_bias_pool is empty for sample {id}")
                 #3. description + bias list
                 elif self.prompt and self.bias_list and self.bias_nums > 0 and not self.bias_desc:
-                    print("Using desction + bias list")
                     if not self.random_prompt or 'train' not in self.phase:
                         prompt_text = prompt
                     else:
@@ -311,7 +310,6 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                     
                 #4. reverse bias list + description
                 elif self.prompt and self.bias_list and self.bias_nums > 0 and self.bias_desc:
-                    print("Using reverse bias list + description")
                     if not self.random_prompt or 'train' not in self.phase:
                         prompt_text = prompt
                     else:
