@@ -190,7 +190,7 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                         prompt_text = prompt
                     else:
                         if torch.rand([]) < 0.05:
-                            print(f"Truong hop random prompt cho id {id}")
+                            # print(f"Truong hop random prompt cho id {id}")
                             prompt_text = random_prompt
                         else:
                             prompt_text = prompt
