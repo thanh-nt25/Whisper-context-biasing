@@ -11,14 +11,23 @@ from huggingface_hub import snapshot_download, HfApi
 from transformers import Seq2SeqTrainingArguments, Seq2SeqTrainer, WhisperProcessor, GenerationConfig
 from transformers.trainer_callback import TrainerCallback
 from transformers import EarlyStoppingCallback
-from models.whisper_medical import WhisperForConditionalGenerationWeightCE
+
+# Đảm bảo PROJECT_ROOT trỏ đúng đến thư mục gốc
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, PROJECT_ROOT)
+print(f"PROJECT_ROOT: {PROJECT_ROOT}")
+print(f"sys.path: {sys.path}")
+
+try:
+    from models.whisper_medical import WhisperForConditionalGenerationWeightCE
+except ModuleNotFoundError:
+    print("Error: Module 'models' not found. Please check if 'models/whisper_medical.py' exists in PROJECT_ROOT.")
+    sys.exit(1)
+
 from data_utils.data_loader import PromptWhisperDataset
 from data_utils.data_collator import DataCollatorSpeechSeq2SeqWithPadding
 from utils.compute_metric import compute_wer, compute_bias_wer
 from config.config import DATA_ROOT, DATA_DIR, JSONL_DATA
-
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-sys.path.insert(0, PROJECT_ROOT)
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train Whisper medical model with context biasing")
@@ -82,7 +91,7 @@ class PushToHubOnSaveCallback(TrainerCallback):
 
 def main():
     args = parse_args()
-    print(f"Arguments: {vars(args)}")  # In args để kiểm tra
+    print(f"Arguments: {vars(args)}")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
@@ -160,6 +169,7 @@ def main():
 
     # Xác định model_source và checkpoint
     checkpoint_dir = None
+    model_source = "openai/whisper-base.en"
     if args.resume:
         checkpoints = [d for d in os.listdir(output_dir) if d.startswith("checkpoint-")]
         if checkpoints:
@@ -172,7 +182,6 @@ def main():
             checkpoint_dir = output_dir
     else:
         print("Bắt đầu huấn luyện từ đầu với openai/whisper-base.en")
-        model_source = "openai/whisper-base.en"
 
     # Load mô hình
     try:
