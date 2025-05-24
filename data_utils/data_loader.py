@@ -242,6 +242,9 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                             encoded_bias.extend(encoded_word)
                             if i < len(bias_words_list) - 1: 
                                 encoded_bias.extend(space_token)
+                                
+                        if not encoded_bias:
+                          raise ValueError("encoded_bias is empty. Please ensure bias_words_list contains valid words for encoding.")
 
                         # full_sequence = [start_of_prev] + encoded_bias + [start_of_transcript] + encoded_label
                         full_sequence = [start_of_prev] + encoded_bias + encoded_label
@@ -263,7 +266,7 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                         if len(encoded_prompt) > 150:
                             encoded_prompt = encoded_prompt[:150]
                     else:
-                        encoded_prompt = []
+                        raise ValueError(f"Error for extracting prompt")
 
                     relate_terms = self.tokenizer.encode("Relate terms: ", add_special_tokens=False)
 
@@ -302,6 +305,9 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                             encoded_bias.extend(encoded_word)
                             if i < len(bias_words_list) - 1: 
                                 encoded_bias.extend(space_token)
+                                
+                        if not encoded_bias:
+                          raise ValueError("encoded_bias is empty. Please ensure bias_words_list contains valid words for encoding.")
 
                     # description + "Relate terms:" + bias list + label
                     # full_sequence = [start_of_prev] + encoded_prompt + relate_terms + encoded_bias + [start_of_transcript] + encoded_label
@@ -323,7 +329,7 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                         if len(encoded_prompt) > 150:
                             encoded_prompt = encoded_prompt[:150]
                     else:
-                        encoded_prompt = []
+                        raise ValueError(f"Error for extracting prompt")
 
                     relate_terms = self.tokenizer.encode("Relate terms: ", add_special_tokens=False)
 
@@ -362,7 +368,9 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                             encoded_bias.extend(encoded_word)
                             if i < len(bias_words_list) - 1: 
                                 encoded_bias.extend(space_token)
-
+                        if not encoded_bias:
+                          raise ValueError("encoded_bias is empty. Please ensure bias_words_list contains valid words for encoding.")
+                    
                     full_sequence = [start_of_prev] + relate_terms + encoded_bias + encoded_prompt + encoded_label
                     full_sequence_tensor = torch.tensor(full_sequence)                    
                
