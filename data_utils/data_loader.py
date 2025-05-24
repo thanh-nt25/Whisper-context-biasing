@@ -198,8 +198,8 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                         if len(encoded_prompt) > 190:
                             encoded_prompt = encoded_prompt[:190]
                     else:
-                        error_msg = f"Error for extracting prompt of {id}: prompt_text is {'None' if prompt_text is None else 'empty'}"
-                        raise ValueError(error_msg)
+                        print(f"Error for extracting prompt of {id}: prompt_text is {'None' if prompt_text is None else 'empty'}")
+                        encoded_prompt = []
 
                     # full_sequence = [start_of_prev] + encoded_prompt + [start_of_transcript] + encoded_label
                     full_sequence = [start_of_prev] + encoded_prompt + encoded_label
@@ -265,8 +265,8 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                         if len(encoded_prompt) > 150:
                             encoded_prompt = encoded_prompt[:150]
                     else:
-                          error_msg = f"Error for extracting prompt of {id}: prompt_text is {'None' if prompt_text is None else 'empty'}"
-                          raise ValueError(error_msg)
+                        print(f"Error for extracting prompt of {id}: prompt_text is {'None' if prompt_text is None else 'empty'}")
+                        encoded_prompt = []
 
 
                     relate_terms = self.tokenizer.encode("Relate terms: ", add_special_tokens=False)
@@ -329,8 +329,8 @@ class PromptWhisperDataset(torch.utils.data.Dataset):
                         if len(encoded_prompt) > 150:
                             encoded_prompt = encoded_prompt[:150]
                     else:
-                        error_msg = f"Error for extracting prompt of {id}: prompt_text is {'None' if prompt_text is None else 'empty'}"
-                        raise ValueError(error_msg)
+                        print(f"Error for extracting prompt of {id}: prompt_text is {'None' if prompt_text is None else 'empty'}")
+                        encoded_prompt = []
 
 
                     relate_terms = self.tokenizer.encode("Relate terms: ", add_special_tokens=False)
